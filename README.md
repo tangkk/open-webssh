@@ -1,8 +1,16 @@
 # Open WebSSH
 
-Mobile-first Web SSH gateway for connecting a browser to an existing SSH
-endpoint. The browser creates a device-bound ECDSA P-256 key; the private key
-stays in the browser's IndexedDB and is never uploaded to the gateway.
+Open WebSSH is a self-hosted, mobile-first alternative for remote terminal
+workflows such as Codex Remote. It lets you reopen Codex, Hermes, OpenClaw,
+tmux, or an ordinary shell from Safari, Chrome, or a desktop browser while
+keeping control of the gateway and SSH endpoint. It is a general Web SSH
+gateway, not an official Codex client or a drop-in implementation of every
+feature in a hosted remote-control product.
+
+The browser creates a device-bound ECDSA P-256 key. Its private key stays in
+the browser's IndexedDB and is never uploaded to the gateway; only an
+authorized public-key fingerprint is accepted. The mobile UI adds terminal
+tabs and an extra keyboard for common control sequences and agent commands.
 
 This project is intentionally deployment-neutral. The repository contains
 generic examples only. Your hostname, SSH user, ports, machine names, tmux
@@ -27,10 +35,26 @@ additional access layer such as Cloudflare Access where appropriate.
 
 ## Requirements
 
-- Node.js 22.13 or newer
-- An SSH endpoint reachable from the gateway
-- A remote account authorized with the browser-generated public key
-- A gateway environment file containing the SSH host-key and device allowlist
+This is self-hosted infrastructure, not a zero-configuration static website.
+A production deployment needs:
+
+- A Linux gateway/VPS that can run Node.js 22.13 or newer and remain online.
+- A domain with HTTPS and WebSocket (`WSS`) forwarding to the gateway, for
+  example through Caddy, nginx, or a Cloudflare proxy/tunnel.
+- An SSH endpoint reachable from that gateway. A reverse SSH tunnel or VPN is
+  required when the target machine is behind NAT and cannot be reached
+  directly.
+- A dedicated remote account configured for public-key authentication. The
+  browser-generated public key must be authorized by the SSH account, while
+  its fingerprint must also be enrolled in the gateway allowlist.
+- A verified SSH `known_hosts` file and a private gateway environment file.
+- Operational ownership of updates, logs, access control, backups, and the
+  reverse tunnel or VPN used to reach the target.
+
+For internet-facing use, put an additional identity-aware access layer such as
+Cloudflare Access in front of the application. Mobile browsers may suspend
+background pages, so use tmux (or another terminal multiplexer) when commands
+must survive browser disconnects.
 
 ## Local development
 
