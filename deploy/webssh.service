@@ -1,0 +1,30 @@
+[Unit]
+Description=Browser-key Web SSH gateway
+After=network-online.target ssh.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=webssh
+Group=webssh
+WorkingDirectory=/opt/open-webssh
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/open-webssh/webssh.env
+ExecStart=/usr/local/bin/npm start
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

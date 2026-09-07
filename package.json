@@ -1,0 +1,36 @@
+{
+  "name": "webssh",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"tsx watch server/index.ts\"",
+    "build": "tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.server.json && vite build",
+    "deploy": "bash scripts/deploy.sh",
+    "start": "node dist-server/index.js",
+    "lint": "eslint src server --max-warnings=0"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "express": "^5.1.0",
+    "node-pty": "^1.1.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.19.0",
+    "@types/ws": "^8.18.1",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.48.1",
+    "vite": "^7.2.4"
+  }
+}
