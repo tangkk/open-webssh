@@ -125,6 +125,29 @@ The files under `deploy/` are generic systemd and Caddy examples. Before
 installing them, replace the example hostname and paths with your deployment's
 values through a private environment file.
 
+The included `scripts/deploy.sh` deploys an already-installed service without
+reading or uploading a complete shell profile. Export only the variables you
+want it to use, then run `npm run deploy`:
+
+```bash
+export WEBSSH_DEPLOY_HOST=your-gateway.example
+export WEBSSH_DEPLOY_USER=root
+export WEBSSH_PUBLIC_ORIGIN=https://ssh.example.com
+export WEBSSH_SSH_HOST=127.0.0.1
+export WEBSSH_SSH_PORT=2222
+export WEBSSH_SSH_USER=remote-user
+export WEBSSH_TMUX_SESSION=main
+
+npm run deploy
+```
+
+Optional variables include `WEBSSH_REMOTE_DIR`, `WEBSSH_REMOTE_ENV`,
+`WEBSSH_SYSTEMD_SERVICE`, `WEBSSH_SSH_KNOWN_HOSTS`,
+`WEBSSH_ALLOWLIST_FILE`, `WEBSSH_MAX_CONNECTIONS`,
+`WEBSSH_TARGET_LABEL`, `WEBSSH_GATEWAY_LABEL`, and `WEBSSH_APP_NAME`.
+The script uses the current SSH key configuration for `scp`/`ssh`; it does not
+accept or transmit a root password.
+
 Production should have:
 
 1. `PUBLIC_ORIGIN` set to the exact HTTPS origin.
