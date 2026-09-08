@@ -50,6 +50,10 @@ host keys live only in the private `TARGETS_FILE`; the browser receives only a
 short target ID, display label, and declared UI capabilities. Use capabilities
 to hide tmux or agent shortcuts on hosts where they are not installed.
 
+The display label is also configuration, not application code. Rename, add, or
+remove machines by editing the private registry and restarting the service;
+the public repository, browser bundle, and deployment command remain generic.
+
 ## Requirements
 
 This is self-hosted infrastructure, not a zero-configuration static website.
@@ -116,6 +120,22 @@ the ID, label, and capabilities are returned to the browser; connection
 details never leave the gateway. Start from
 [`deploy/targets.json.example`](deploy/targets.json.example), but keep the
 actual file outside the repository and do not commit it.
+
+Each target has these private fields:
+
+| Field | Purpose |
+| --- | --- |
+| `id` | Stable neutral identifier sent by the browser; use lowercase letters, digits, `_`, or `-` |
+| `label` | Human-readable name displayed in the target picker and tab |
+| `host`, `port`, `user` | SSH connection details, visible only to the gateway |
+| `knownHostsFile` | Dedicated pinned host-key file for that target |
+| `tmuxBin` | Optional absolute path to tmux on that target |
+| `capabilities.tmux` / `capabilities.agents` | Whether to enable tmux and agent shortcut controls for that target |
+
+After changing a target, verify its host key out of band, update that target's
+`knownHostsFile`, and restart the service. Do not use labels or target IDs as a
+security boundary: the gateway validates every requested ID against this file
+and always uses its server-side host, user, port, and host-key settings.
 
 In production, startup fails if `PUBLIC_ORIGIN`, `TARGETS_FILE`, or
 `ALLOWLIST_FILE` is missing or invalid. Every target's known-hosts file and
