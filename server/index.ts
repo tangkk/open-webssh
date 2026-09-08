@@ -30,9 +30,64 @@ const allowlistFile = process.env.ALLOWLIST_FILE || "/etc/webssh/allowed_fingerp
 const knownHostsFile = process.env.SSH_KNOWN_HOSTS || "/etc/webssh/known_hosts";
 const allowUnenrolled = process.env.WEBSSH_ALLOW_UNENROLLED === "1";
 const publicOrigin = process.env.PUBLIC_ORIGIN;
-const maxConnections = Math.max(1, Number.parseInt(process.env.MAX_CONNECTIONS || "12", 10) || 12);
+const maxConnections = integerSetting("MAX_CONNECTIONS", 12, 1, 1_000);
+const helloTimeoutMs = integerSetting("AUTH_HELLO_TIMEOUT_MS", 15_000, 1_000, 120_000);
+const signatureTimeoutMs = integerSetting("AUTH_SIGNATURE_TIMEOUT_MS", 30_000, 5_000, 300_000);
+const heartbeatIntervalMs = integerSetting("WS_HEARTBEAT_INTERVAL_MS", 30_000, 5_000, 300_000);
+const heartbeatTimeoutMs = integerSetting("WS_HEARTBEAT_TIMEOUT_MS", 180_000, heartbeatIntervalMs * 2, 900_000);
 const distDirectory = resolve(process.cwd(), "dist");
 let activeConnections = 0;
+
+function integerSetting(name: string, fallback: number, minimum: number, maximum: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}`);
+  }
+  return parsed;
+}
+
+async function requireReadableEntries(path: string, label: string): Promise<void> {
+  let contents: string;
+  try {
+    contents = await readFile(path, "utf8");
+  } catch (error) {
+    throw new Error(`${label} is not readable at ${path}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const entries = contents.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith("#"));
+  if (entries.length === 0) throw new Error(`${label} has no active entries at ${path}`);
+}
+
+async function validateProductionConfiguration(): Promise<void> {
+  if (process.env.NODE_ENV !== "production") return;
+  if (allowUnenrolled) throw new Error("WEBSSH_ALLOW_UNENROLLED must not be enabled in production");
+
+  const requiredVariables = ["PUBLIC_ORIGIN", "SSH_HOST", "SSH_PORT", "SSH_USER", "SSH_KNOWN_HOSTS", "ALLOWLIST_FILE"];
+  for (const name of requiredVariables) {
+    if (!process.env[name]?.trim()) throw new Error(`${name} is required in production`);
+  }
+
+  let origin: URL;
+  try {
+    origin = new URL(publicOrigin!);
+  } catch {
+    throw new Error("PUBLIC_ORIGIN must be a valid URL");
+  }
+  if (origin.protocol !== "https:" || origin.origin !== publicOrigin) {
+    throw new Error("PUBLIC_ORIGIN must be an exact HTTPS origin without a path, query, or trailing slash");
+  }
+  const parsedSshPort = Number(sshPort);
+  if (!Number.isInteger(parsedSshPort) || parsedSshPort < 1 || parsedSshPort > 65_535) {
+    throw new Error("SSH_PORT must be an integer between 1 and 65535");
+  }
+  if (sshUser === "remote-user") throw new Error("SSH_USER must not use the example value in production");
+
+  await Promise.all([
+    requireReadableEntries(knownHostsFile, "SSH_KNOWN_HOSTS"),
+    requireReadableEntries(allowlistFile, "ALLOWLIST_FILE"),
+  ]);
+}
 
 const app = express();
 app.disable("x-powered-by");
@@ -47,6 +102,20 @@ app.get("/{*path}", (_request, response) => {
 
 const server = createServer(app);
 const websocketServer = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
+const lastPongAt = new WeakMap<WebSocket, number>();
+
+const heartbeatTimer = setInterval(() => {
+  const now = Date.now();
+  for (const websocket of websocketServer.clients) {
+    if (now - (lastPongAt.get(websocket) || now) >= heartbeatTimeoutMs) {
+      websocket.terminate();
+      continue;
+    }
+    if (websocket.readyState === WebSocket.OPEN) websocket.ping();
+  }
+}, heartbeatIntervalMs);
+heartbeatTimer.unref();
+server.once("close", () => clearInterval(heartbeatTimer));
 
 server.on("upgrade", (request, socket, head) => {
   if (request.url !== "/ws") {
@@ -130,12 +199,29 @@ function listTmuxSessions(agentSocket: string, strictHostKeyArgs: string[]): Pro
 
 websocketServer.on("connection", (websocket) => {
   activeConnections += 1;
+  lastPongAt.set(websocket, Date.now());
+  websocket.on("pong", () => lastPongAt.set(websocket, Date.now()));
   let agent: BrowserAgent | undefined;
   let terminal: pty.IPty | undefined;
   let temporaryDirectory: string | undefined;
   let agentSocket: string | undefined;
   let strictHostKeyArgs: string[] = [];
   let initialized = false;
+  let authenticationTimer: NodeJS.Timeout | undefined;
+
+  const closeForAuthenticationTimeout = (message: string) => {
+    send(websocket, { type: "error", message });
+    websocket.close(1008, "authentication timeout");
+  };
+  authenticationTimer = setTimeout(
+    () => closeForAuthenticationTimeout("Authentication did not start in time"),
+    helloTimeoutMs,
+  );
+
+  const clearAuthenticationTimer = () => {
+    if (authenticationTimer) clearTimeout(authenticationTimer);
+    authenticationTimer = undefined;
+  };
 
   const cleanup = async () => {
     terminal?.kill();
@@ -159,6 +245,11 @@ websocketServer.on("connection", (websocket) => {
 
     if (message.type === "hello" && !initialized) {
       initialized = true;
+      clearAuthenticationTimer();
+      authenticationTimer = setTimeout(
+        () => closeForAuthenticationTimeout("Device signature was not completed in time"),
+        signatureTimeoutMs,
+      );
       const keyBlob = Buffer.from(message.keyBlob, "base64");
       const fingerprint = normalizedFingerprint(keyBlob);
       if (fingerprint !== message.fingerprint || keyBlob.length < 80 || keyBlob.length > 256) {
@@ -175,7 +266,7 @@ websocketServer.on("connection", (websocket) => {
       try {
         temporaryDirectory = await mkdtemp(join(tmpdir(), "webssh-"));
         agentSocket = join(temporaryDirectory, "agent.sock");
-        agent = new BrowserAgent(websocket, keyBlob);
+        agent = new BrowserAgent(websocket, keyBlob, clearAuthenticationTimer);
         await agent.listen(agentSocket);
         strictHostKeyArgs = process.env.SSH_KNOWN_HOSTS
           ? ["-o", "StrictHostKeyChecking=yes", "-o", `UserKnownHostsFile=${knownHostsFile}`]
@@ -229,13 +320,26 @@ websocketServer.on("connection", (websocket) => {
     }
   });
 
-  websocket.on("close", () => void cleanup());
-  websocket.on("error", () => void cleanup());
+  websocket.on("close", () => {
+    clearAuthenticationTimer();
+    void cleanup();
+  });
+  websocket.on("error", () => {
+    clearAuthenticationTimer();
+    void cleanup();
+  });
   websocket.once("close", () => {
     activeConnections = Math.max(0, activeConnections - 1);
   });
 });
 
-server.listen(port, "127.0.0.1", () => {
-  console.log(`WebSSH listening on http://127.0.0.1:${port}`);
-});
+validateProductionConfiguration()
+  .then(() => {
+    server.listen(port, "127.0.0.1", () => {
+      console.log(`WebSSH listening on http://127.0.0.1:${port}`);
+    });
+  })
+  .catch((error) => {
+    console.error(`WebSSH configuration error: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  });

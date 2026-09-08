@@ -44,6 +44,7 @@ export class BrowserAgent {
   constructor(
     private readonly websocket: WebSocket,
     private readonly keyBlob: Buffer,
+    private readonly onSignatureProvided?: () => void,
   ) {}
 
   async listen(socketPath: string): Promise<void> {
@@ -66,6 +67,7 @@ export class BrowserAgent {
       request.socket.write(frame(Buffer.from([SSH_AGENT_FAILURE])));
       return;
     }
+    this.onSignatureProvided?.();
     const signatureBlob = Buffer.from(signature, "base64");
     request.socket.write(frame(Buffer.concat([Buffer.from([SSH_AGENT_SIGN_RESPONSE]), sshBytes(signatureBlob)])));
   }

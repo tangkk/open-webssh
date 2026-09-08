@@ -96,6 +96,16 @@ Runtime variables used by the gateway:
 | `ALLOWLIST_FILE` | Authorized browser-key fingerprints |
 | `MAX_CONNECTIONS` | Maximum simultaneous WebSSH sessions; this is the server-side tab limit |
 | `TMUX_BIN` | Path to the tmux binary on the remote SSH host, when it is not in the non-interactive SSH PATH |
+| `AUTH_HELLO_TIMEOUT_MS` | Time allowed for a new WebSocket to begin authentication; default `15000` |
+| `AUTH_SIGNATURE_TIMEOUT_MS` | Time allowed for an enrolled browser to provide the SSH signature; default `30000` |
+| `WS_HEARTBEAT_INTERVAL_MS` | WebSocket ping interval; default `30000` |
+| `WS_HEARTBEAT_TIMEOUT_MS` | Time without a pong before a dead connection is terminated; default `180000` |
+
+In production, startup fails if `PUBLIC_ORIGIN`, `SSH_HOST`, `SSH_PORT`,
+`SSH_USER`, `SSH_KNOWN_HOSTS`, or `ALLOWLIST_FILE` is missing or invalid. The
+known-hosts and allowlist files must be readable and non-empty, and
+`WEBSSH_ALLOW_UNENROLLED=1` is rejected. This fail-closed validation prevents a
+configuration typo from silently weakening origin or SSH host-key checks.
 
 ## Themes
 
@@ -192,7 +202,9 @@ npm run deploy
 
 Optional variables include `WEBSSH_REMOTE_DIR`, `WEBSSH_REMOTE_ENV`,
 `WEBSSH_SYSTEMD_SERVICE`, `WEBSSH_SSH_KNOWN_HOSTS`,
-`WEBSSH_ALLOWLIST_FILE`, `WEBSSH_MAX_CONNECTIONS`, and `WEBSSH_TMUX_BIN`.
+`WEBSSH_ALLOWLIST_FILE`, `WEBSSH_MAX_CONNECTIONS`, `WEBSSH_TMUX_BIN`,
+`WEBSSH_AUTH_HELLO_TIMEOUT_MS`, `WEBSSH_AUTH_SIGNATURE_TIMEOUT_MS`,
+`WEBSSH_WS_HEARTBEAT_INTERVAL_MS`, and `WEBSSH_WS_HEARTBEAT_TIMEOUT_MS`.
 The script uses the current SSH key configuration for `scp`/`ssh`; it does not
 accept or transmit a root password.
 
