@@ -20,8 +20,8 @@ button, textarea, input, select { color: inherit; font: inherit; }
 button { -webkit-tap-highlight-color: transparent; cursor: pointer; }
 
 .shell {
-  /* absolute（而非 fixed）：iOS 会冻结 fixed 元素在键盘动画期间的 paint 提交，
-     absolute 相对 layout viewport、不被冻结，改高度能立即生效。 */
+  /* absolute rather than fixed: iOS can freeze fixed-element paint commits during
+     keyboard animation. Absolute positioning tracks the layout viewport and updates immediately. */
   position: absolute;
   top: var(--viewport-top, 0px);
   left: 0;
@@ -36,9 +36,9 @@ button { -webkit-tap-highlight-color: transparent; cursor: pointer; }
 .shell.connected { grid-template-rows: 1fr auto; background: var(--terminal); }
 .shell.connected .topbar { display: none; }
 .shell.connected #terminal { inset: 6px 5px 3px; }
-/* iOS 会把 visualViewport 的键盘 resize 延迟到第一次按键。打开键盘时 JS
-   （reserveForKeyboard）直接按预估键盘高度改写 --viewport-height 并重排，
-   真实高度到达后由 updateVisualViewport 修正，无需 CSS 侧预留规则。 */
+/* iOS delays the keyboard visualViewport resize until the first keypress. JS
+   reserveForKeyboard writes an estimated --viewport-height immediately; once the
+   real height arrives, updateVisualViewport corrects it. */
 
 .topbar {
   min-height: 60px;
@@ -82,15 +82,17 @@ button { -webkit-tap-highlight-color: transparent; cursor: pointer; }
 .tab-add { width: 32px; padding: 0; color: #33d17a; }
 .xterm { height: 100%; max-height: 100%; overflow: hidden; padding: 3px; }
 .xterm .xterm-viewport {
-  /* xterm 6 滚动是虚拟的（Scrollable 模型 + 自绘滚动条），原生滚动空间恒为
-     0；禁掉原生滚动，避免桌面浏览器画出无法拖动的幽灵滚动条。 */
+  /* xterm 6 scrolling is virtual (Scrollable model plus custom scrollbar), so
+     native scroll space is always zero. Disable native scrolling to avoid a
+     non-draggable phantom scrollbar on desktop browsers. */
   overflow: hidden !important;
   touch-action: none;
 }
 .xterm .xterm-screen { touch-action: none; user-select: none; }
 
-/* xterm 6 自绘滚动条默认空闲 500ms 即淡出（.invisible），触屏上根本来不及拖。
-   有滚动空间时保持常显且可拖；没有滚动空间（如 tmux 全屏）时维持隐藏。 */
+/* xterm 6's custom scrollbar fades after 500ms of idle by default, which is too
+   fast to drag on touch devices. Keep it visible and draggable when scroll space
+   exists; keep it hidden when there is none, such as a full-screen tmux view. */
 .has-scrollback .xterm-scrollable-element > .scrollbar {
   opacity: 1 !important;
   pointer-events: auto !important;
@@ -323,8 +325,8 @@ dialog textarea {
   -webkit-text-fill-color: transparent !important;
 }
 
-/* ⇄ 键现在是「键盘缩短方式」开关：默认（纯 CSS 无重绘）时保持绿色高亮，
-   点按切到 fit（立即缩短）时淡化为灰白。 */
+/* ⇄ toggles keyboard resize mode: the default CSS-only/no-redraw mode stays
+   highlighted; fit/immediate-resize mode is muted. */
 .command-bar .control-key.keyboard-css-off {
   border-color: rgba(255, 255, 255, .35) !important;
   color: #e8e8e8 !important;

@@ -107,7 +107,7 @@ websocketServer.on("connection", (websocket) => {
     try {
       message = JSON.parse(raw.toString()) as ClientMessage;
     } catch {
-      send(websocket, { type: "error", message: "无效请求" });
+      send(websocket, { type: "error", message: "Invalid request" });
       return;
     }
 
@@ -116,12 +116,12 @@ websocketServer.on("connection", (websocket) => {
       const keyBlob = Buffer.from(message.keyBlob, "base64");
       const fingerprint = normalizedFingerprint(keyBlob);
       if (fingerprint !== message.fingerprint || keyBlob.length < 80 || keyBlob.length > 256) {
-        send(websocket, { type: "error", message: "设备公钥无效" });
+        send(websocket, { type: "error", message: "Invalid device public key" });
         websocket.close(1008);
         return;
       }
       if (!(await isAllowed(fingerprint))) {
-        send(websocket, { type: "error", message: `设备尚未在网关授权：${fingerprint}` });
+        send(websocket, { type: "error", message: `Device is not authorized by the gateway: ${fingerprint}` });
         websocket.close(1008);
         return;
       }
@@ -146,7 +146,7 @@ websocketServer.on("connection", (websocket) => {
           ...strictHostKeyArgs,
           `${sshUser}@${sshHost}`,
         ];
-        send(websocket, { type: "status", status: "connecting", message: "设备签名验证中…" });
+        send(websocket, { type: "status", status: "connecting", message: "Verifying device signature…" });
         terminal = pty.spawn("ssh", args, {
           name: "xterm-256color",
           cols: safeSize(message.cols, 80, 300),
@@ -156,12 +156,12 @@ websocketServer.on("connection", (websocket) => {
         });
         terminal.onData((data) => send(websocket, { type: "output", data: Buffer.from(data, "utf8").toString("base64") }));
         terminal.onExit(({ exitCode }) => {
-          send(websocket, { type: "status", status: "closed", message: `SSH 已结束 (${exitCode})` });
+          send(websocket, { type: "status", status: "closed", message: `SSH exited (${exitCode})` });
           websocket.close();
         });
         send(websocket, { type: "status", status: "connected" });
       } catch (error) {
-        send(websocket, { type: "error", message: error instanceof Error ? error.message : "SSH 启动失败" });
+        send(websocket, { type: "error", message: error instanceof Error ? error.message : "Failed to start SSH" });
         await cleanup();
       }
       return;

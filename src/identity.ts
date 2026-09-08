@@ -139,7 +139,7 @@ async function hydrate(stored: StoredIdentity): Promise<DeviceIdentity> {
 
 export async function getOrCreateIdentity(): Promise<DeviceIdentity> {
   if (!window.isSecureContext || !crypto.subtle || !window.indexedDB) {
-    throw new Error("需要 HTTPS 和支持 Web Crypto/IndexedDB 的浏览器");
+    throw new Error("HTTPS and a browser with Web Crypto and IndexedDB are required");
   }
 
   let stored = await readStoredIdentity();

@@ -88,64 +88,64 @@ app.innerHTML = `
     <header class="topbar">
       <div class="brand">
         <span class="signal" id="signal"></span>
-        <div><strong>Web SSH</strong><small id="status">准备设备密钥</small></div>
+        <div><strong>Web SSH</strong><small id="status">Preparing device key</small></div>
       </div>
-      <button class="icon-button" id="device-button" aria-label="设备密钥">密钥</button>
+      <button class="icon-button" id="device-button" aria-label="Device key">Key</button>
     </header>
     <div class="terminal-wrap" id="terminal-wrap">
       <div class="tab-bar" id="tab-bar" hidden>
-        <button class="tab-add" id="tab-add" type="button" aria-label="新建 terminal">＋</button>
-        <button class="tab-theme" id="theme-toggle" type="button" aria-label="选择主题" aria-expanded="false" title="Theme">◐</button>
+        <button class="tab-add" id="tab-add" type="button" aria-label="New terminal">＋</button>
+        <button class="tab-theme" id="theme-toggle" type="button" aria-label="Choose theme" aria-expanded="false" title="Theme">◐</button>
       </div>
-      <div class="theme-menu" id="theme-menu" role="menu" aria-label="终端主题" hidden></div>
+      <div class="theme-menu" id="theme-menu" role="menu" aria-label="Terminal theme" hidden></div>
       <div id="terminal"></div>
       <section class="onboarding" id="onboarding">
         <p class="eyebrow">PRIVATE SSH ACCESS</p>
         <div class="title-row"><h1>Web SSH</h1><span class="target-badge"><i></i>${appConfig.targetLabel}</span></div>
-        <p class="lede">一个简洁的 ${appConfig.targetLabel} 终端入口。SSH 私钥只保存在这台设备的浏览器中；${appConfig.gatewayLabel} 只转发会话，不保存私钥。</p>
+        <p class="lede">A focused terminal gateway for ${appConfig.targetLabel}. The SSH private key stays in this device's browser; ${appConfig.gatewayLabel} only relays the session and never stores the private key.</p>
         <div class="key-card">
-          <span>此设备公钥指纹</span>
-          <code id="fingerprint">正在生成…</code>
+          <span>This device's public-key fingerprint</span>
+          <code id="fingerprint">Generating…</code>
         </div>
-        <button class="primary" id="connect" disabled>连接 ${appConfig.targetLabel}</button>
-        <button class="secondary" id="copy-key" disabled>复制公钥以授权此设备</button>
-        <p class="hint" id="hint">首次使用需要将公钥加入 ${appConfig.targetLabel}。</p>
+        <button class="primary" id="connect" disabled>Connect to ${appConfig.targetLabel}</button>
+        <button class="secondary" id="copy-key" disabled>Copy public key to authorize this device</button>
+        <p class="hint" id="hint">On first use, add this public key to ${appConfig.targetLabel}.</p>
       </section>
     </div>
-    <div class="command-bar" id="command-bar" aria-label="终端控制栏">
+    <div class="command-bar" id="command-bar" aria-label="Terminal controls">
       <div class="command-row command-row-commands">
-        <button class="control-key agent-key" id="codex-resume" type="button" aria-label="发送 codex resume --all --no-alt-screen" title="Codex">C</button>
-        <button class="control-key agent-key" id="hermes-sessions" type="button" aria-label="进入 Hermes 并列出 sessions" title="Hermes">H</button>
-        <button class="control-key agent-key" id="openclaw-sessions" type="button" aria-label="进入 OpenClaw 并列出 sessions" title="OpenClaw">O</button>
-        <button class="control-key agent-key" id="tmux-attach" type="button" aria-label="连接 tmux ${appConfig.tmuxSession} session" title="tmux ${appConfig.tmuxSession}">T</button>
-        <button class="control-key agent-key" id="agent-commands" type="button" aria-label="打开当前 agent 常用命令" aria-expanded="false" title="Agent commands">⋯</button>
-        <button class="control-key copy-key" id="copy-selection" type="button" aria-label="复制选中文字" disabled>⧉</button>
-        <button class="control-key" id="paste" type="button" aria-label="粘贴剪贴板内容">⎘</button>
-        <button class="control-key" id="clear-screen" type="button" aria-label="清屏">⌧</button>
-        <button class="control-key" id="page-up" type="button" aria-label="向上翻屏">⇞</button>
-        <button class="control-key" id="page-down" type="button" aria-label="向下翻屏">⇟</button>
+        <button class="control-key agent-key" id="codex-resume" type="button" aria-label="Send codex resume --all --no-alt-screen" title="Codex">C</button>
+        <button class="control-key agent-key" id="hermes-sessions" type="button" aria-label="Open Hermes and list sessions" title="Hermes">H</button>
+        <button class="control-key agent-key" id="openclaw-sessions" type="button" aria-label="Open OpenClaw and list sessions" title="OpenClaw">O</button>
+        <button class="control-key agent-key" id="tmux-attach" type="button" aria-label="Attach to tmux session ${appConfig.tmuxSession}" title="tmux ${appConfig.tmuxSession}">T</button>
+        <button class="control-key agent-key" id="agent-commands" type="button" aria-label="Open common commands for the current agent" aria-expanded="false" title="Agent commands">⋯</button>
+        <button class="control-key copy-key" id="copy-selection" type="button" aria-label="Copy selected text" disabled>⧉</button>
+        <button class="control-key" id="paste" type="button" aria-label="Paste clipboard contents">⎘</button>
+        <button class="control-key" id="clear-screen" type="button" aria-label="Clear screen">⌧</button>
+        <button class="control-key" id="page-up" type="button" aria-label="Page up">⇞</button>
+        <button class="control-key" id="page-down" type="button" aria-label="Page down">⇟</button>
       </div>
       <div class="command-row command-row-keys">
         <button class="exit-key" id="exit-ssh" type="button" aria-label="Logout">⏻</button>
-        <button class="control-key" id="escape-key" type="button" aria-label="发送 Escape">⎋</button>
-        <button class="control-key" id="tab-key" type="button" aria-label="发送 Tab">⇥</button>
-        <button class="control-key arrow-key" id="arrow-up" type="button" aria-label="发送向上箭头">↑</button>
-        <button class="control-key arrow-key" id="arrow-down" type="button" aria-label="发送向下箭头">↓</button>
-        <button class="control-key cursor-key" id="cursor-location" type="button" aria-label="回到终端光标处">⌖</button>
-        <button class="control-key keyboard-open-key" id="keyboard-open" type="button" aria-label="打开键盘">⌨</button>
-        <button class="control-key" id="ctrl-d" type="button" aria-label="键盘缩短：打空格才缩短" title="键盘缩短开关">⇄</button>
-        <button class="control-key" id="ctrl-c" type="button" aria-label="发送 Ctrl-C">␃</button>
-        <button class="control-key enter-key" id="enter-key" type="button" aria-label="发送回车">↵</button>
+        <button class="control-key" id="escape-key" type="button" aria-label="Send Escape">⎋</button>
+        <button class="control-key" id="tab-key" type="button" aria-label="Send Tab">⇥</button>
+        <button class="control-key arrow-key" id="arrow-up" type="button" aria-label="Send arrow up">↑</button>
+        <button class="control-key arrow-key" id="arrow-down" type="button" aria-label="Send arrow down">↓</button>
+        <button class="control-key cursor-key" id="cursor-location" type="button" aria-label="Return to terminal cursor">⌖</button>
+        <button class="control-key keyboard-open-key" id="keyboard-open" type="button" aria-label="Open keyboard">⌨</button>
+        <button class="control-key" id="ctrl-d" type="button" aria-label="Keyboard resize: resize on space" title="Keyboard resize toggle">⇄</button>
+        <button class="control-key" id="ctrl-c" type="button" aria-label="Send Ctrl-C">␃</button>
+        <button class="control-key enter-key" id="enter-key" type="button" aria-label="Send Enter">↵</button>
       </div>
-      <div class="slash-menu" id="agent-command-menu" role="menu" aria-label="当前 agent 常用命令" hidden></div>
+      <div class="slash-menu" id="agent-command-menu" role="menu" aria-label="Common commands for the current agent" hidden></div>
     </div>
     <dialog id="device-dialog">
       <form method="dialog">
-        <div class="dialog-head"><strong>此设备密钥</strong><button aria-label="关闭">完成</button></div>
-        <p>私钥不可导出，保存在当前浏览器。清除网站数据后需要重新注册。</p>
-        <label>公钥指纹</label><code id="dialog-fingerprint"></code>
-        <label>OpenSSH 公钥</label><textarea id="public-key" readonly></textarea>
-        <button type="button" class="primary compact" id="dialog-copy">复制公钥</button>
+        <div class="dialog-head"><strong>This device's key</strong><button aria-label="Close">Done</button></div>
+        <p>The private key is non-exportable and stored in this browser. Clearing site data requires re-enrollment.</p>
+        <label>Public-key fingerprint</label><code id="dialog-fingerprint"></code>
+        <label>OpenSSH public key</label><textarea id="public-key" readonly></textarea>
+        <button type="button" class="primary compact" id="dialog-copy">Copy public key</button>
       </form>
     </dialog>
   </section>
@@ -197,10 +197,10 @@ terminalInput?.setAttribute("autocorrect", "off");
 terminalInput?.setAttribute("autocapitalize", "none");
 terminalInput?.setAttribute("spellcheck", "false");
 
-// iOS 中文 IME 会把全角标点（，。！？等）和全角空格通过 beforeinput 直接
-// 提交，不触发 composition 流程，xterm 6 会丢失这些字符。这里只转发
-// 「非合成、非刚提交」的非 ASCII 文本；合成中的汉字交给 xterm 的 composition
-// 处理，且完全不碰 ASCII（英文空格由 xterm 的 keydown 处理），避免重复发送。
+// iOS Chinese IME submits full-width punctuation and spaces directly through
+// beforeinput without a composition flow, which xterm 6 can drop. Forward only
+// non-ASCII text that is neither composing nor freshly committed; let xterm
+// handle composing CJK text, and leave ASCII to its keydown path to avoid duplicates.
 let imeComposing = false;
 let imeJustCommitted = false;
 let lastCommittedText = "";
@@ -213,10 +213,10 @@ terminalInput?.addEventListener("compositionstart", () => {
 terminalInput?.addEventListener("beforeinput", (event) => {
   imeLog("beforeinput", `data=${JSON.stringify(event.data)} inputType=${event.inputType} isComposing=${event.isComposing}`);
   if (!event.data) return;
-  // compositionend 后 iOS 可能补发同一个合成文本（insertText），跳过避免 double。
+  // iOS may resend the same composed text as insertText after compositionend; skip it.
   if (event.data === lastCommittedText) return;
-  // 全角空格 U+3000：iOS 上 xterm 6 会丢失。只在非合成时转发；合成中的交给
-  // xterm 的 composition 流程，避免和它的 compositionend 异步发送撞车 double。
+  // Full-width space U+3000 can be dropped by xterm 6 on iOS. Forward it only
+  // outside composition; during composition, let xterm handle it asynchronously.
   if (event.data.includes("\u3000")) {
     if (imeComposing || event.isComposing || imeJustCommitted) return;
     event.preventDefault();
@@ -224,27 +224,26 @@ terminalInput?.addEventListener("beforeinput", (event) => {
     return;
   }
   if (imeComposing || event.isComposing || imeJustCommitted) return;
-  // 只兜底「直接插入」的 insertText（全角标点，。！？走这个 inputType）。
-  // insertCompositionText 是合成文本，交给 xterm 的 compositionend 处理——
-  // 它的 preventDefault 在 iOS 上不可靠，转发了会和 xterm 异步发送重复（double）。
+  // Handle only direct insertText as a fallback (full-width punctuation uses this inputType).
+  // insertCompositionText is handled by xterm at compositionend; preventDefault is
+  // unreliable on iOS, and forwarding it here would duplicate xterm's asynchronous send.
   if (event.inputType !== "insertText") return;
   if (![...event.data].some((character) => character.codePointAt(0)! > 0x7f)) return;
   event.preventDefault();
   sendTerminalInput(event.data);
 });
 
-// xterm 6 的 iOS 合成 bug：中文提交会触发多条发送路径——点选候选词时 input 事件
-// （_inputEvent，因无 keydown 故 keyDownSeen=false）会发一次，按空格/回车时 keydown
-// （_finalizeComposition(false)）会发一次，紧接着 compositionend 又异步发一次 → double。
-// 这里在 document 捕获阶段拦截合成期间发往终端输入框的 keydown 和 input，只
-// stopImmediatePropagation 阻止 xterm 的处理、不 preventDefault（iOS 候选确认照常），
-// 让合成统一走 compositionend 路径单次发送。
+// iOS composition bug in xterm 6: committing Chinese text can trigger multiple
+// send paths. Candidate selection may send through input, space/Enter may send
+// through keydown, and compositionend may send again. During composition, stop
+// xterm's keydown/input handlers at the document capture phase without preventing
+// default, so the compositionend path sends the text exactly once.
 document.addEventListener("keydown", (event) => {
   if (event.target === terminalInput) imeLog("keydown", `key=${event.key} keyCode=${event.keyCode} imeComposing=${imeComposing}`);
   if (event.target !== terminalInput) return;
-  // 合成期间：阻止 xterm 的 keydown 处理（_finalizeComposition(false) 会提前发送）。
-  // keyCode 229 / key "Process" 是 iOS IME 标记，阻止 xterm 的 _handleAnyTextareaChanges
-  // （它会在 compositionend 后重复发送 textarea 新增 → double）。
+  // During composition, block xterm keydown handling, which would send early.
+  // keyCode 229 / key "Process" marks the iOS IME; block xterm's textarea-change
+  // handler too, because it can resend the textarea delta after compositionend.
   if (imeComposing || event.keyCode === 229 || event.key === "Process") {
     event.stopImmediatePropagation();
   }
@@ -253,17 +252,16 @@ document.addEventListener("input", (event) => {
   if (event.target === terminalInput) imeLog("input", `data=${JSON.stringify((event as InputEvent).data)} inputType=${(event as InputEvent).inputType}`);
   if (event.target !== terminalInput) return;
   if (imeComposing) { event.stopImmediatePropagation(); return; }
-  // compositionend 后 iOS 补发的同一个合成文本：阻止 xterm 的 _inputEvent 再发一次。
+  // Block xterm's input event when iOS resends the same composed text after compositionend.
   if (lastCommittedText && (event as InputEvent).data === lastCommittedText) {
     event.stopImmediatePropagation();
     lastCommittedText = "";
   }
 }, { capture: true });
-// iOS 在正常 compositionend（data 非空）提交后，可能再补发一次空 compositionend
-// （data=""）。xterm 的 _finalizeComposition 不清空 textarea、也不更新 _dataAlreadySent
-// （那些本该由 _handleAnyTextareaChanges 做，但已被上面的 keydown/input 拦截挡住），
-// 所以空 compend 会让它把 textarea 里残留的上一个合成文本再发一次 → double。
-// 空 compend 本就不该发送任何内容，这里在 capture 阶段统一拦掉 xterm 的处理。
+// After a normal non-empty compositionend, iOS may emit an extra empty compositionend.
+// xterm's finalize path can then resend stale textarea content because the normal
+// textarea-change handler was blocked above. An empty compositionend should send
+// nothing, so block xterm's handling during capture.
 document.addEventListener("compositionend", (event) => {
   if (event.target !== terminalInput) return;
   const data = (event as CompositionEvent).data || "";
@@ -288,9 +286,9 @@ let selectionRange: { from: { column: number; row: number }; to: { column: numbe
 let inertiaFrame: number | undefined;
 let fitFrame: number | undefined;
 
-// xterm 6 的滚动是虚拟的（Scrollable 模型 + 自绘滚动条）：.xterm-viewport 没有
-// 原生滚动空间，改 scrollTop 是空操作。scrollLines 接受小数值，模型内部保留
-// 亚行精度，自绘滚动条滑块同步移动——手指滑动 1:1 映射到滚动条。
+// xterm 6 scrolling is virtual (a Scrollable model with a custom scrollbar):
+// .xterm-viewport has no native scroll space, so changing scrollTop is a no-op.
+// scrollLines accepts fractional values and preserves sub-line precision internally.
 function scrollTerminalPixels(pixels: number) {
   const rowHeight = Number(terminal.options.fontSize || 12) * Number(terminal.options.lineHeight || 1.18);
   terminal.scrollLines(pixels / rowHeight);
@@ -326,7 +324,7 @@ function selectTerminalRange(from: { column: number; row: number }, to: { column
 
 terminalHost.addEventListener("touchstart", (event) => {
   if (event.touches.length !== 1) return;
-  // 触摸落在 xterm 自绘滚动条上：交给 xterm 自己的滑块拖拽，不做自定义滑动。
+  // Touches on xterm's custom scrollbar are left to xterm's own thumb dragging.
   if (isScrollbarTouch(event)) return;
   terminal.blur();
   if (inertiaFrame !== undefined) cancelAnimationFrame(inertiaFrame);
@@ -540,8 +538,8 @@ function createAdditionalTab() {
 function connectTab(tab: TerminalTab) {
   const tabSocket = new WebSocket(websocketUrl()); tab.socket = tabSocket;
   tabSocket.addEventListener("open", () => { tab.socket = tabSocket; if (activeTab === tab) socket = tabSocket; sendToTab(tab, { type: "hello", keyBlob: bytesToBase64(identity.keyBlob), publicKey: identity.authorizedKey, fingerprint: identity.fingerprint, cols: tab.terminal.cols, rows: tab.terminal.rows }); });
-  tabSocket.addEventListener("message", async (event) => { const message = JSON.parse(String(event.data)) as ServerMessage; if (message.type === "sign_request") { try { const signature = await signAgentChallenge(identity, base64ToBytes(message.data)); if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, signature })); } catch (error) { if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, error: String(error) })); } return; } if (message.type === "output") tab.terminal.write(base64ToBytes(message.data)); if (message.type === "status" && tab === activeTab) { if (message.status === "connecting") setStatus(message.message || "SSH 验证中…", "working"); if (message.status === "connected") { setStatus(`已连接 · ${appConfig.targetLabel}`, "online"); fitTerminal(); } if (message.status === "closed") setStatus(message.message || "连接已断开", "error"); } });
-  tabSocket.addEventListener("close", () => { tab.socket = undefined; if (tab === activeTab) { socket = undefined; setStatus("已断开", "error"); } });
+  tabSocket.addEventListener("message", async (event) => { const message = JSON.parse(String(event.data)) as ServerMessage; if (message.type === "sign_request") { try { const signature = await signAgentChallenge(identity, base64ToBytes(message.data)); if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, signature })); } catch (error) { if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, error: String(error) })); } return; } if (message.type === "output") tab.terminal.write(base64ToBytes(message.data)); if (message.type === "status" && tab === activeTab) { if (message.status === "connecting") setStatus(message.message || "Authenticating SSH…", "working"); if (message.status === "connected") { setStatus(`Connected · ${appConfig.targetLabel}`, "online"); fitTerminal(); } if (message.status === "closed") setStatus(message.message || "Connection closed", "error"); } });
+  tabSocket.addEventListener("close", () => { tab.socket = undefined; if (tab === activeTab) { socket = undefined; setStatus("Disconnected", "error"); } });
 }
 
 const initialTab: TerminalTab = { id: nextTabId++, name: "Terminal 1", host: terminalHost, terminal, fit, tmuxAttached: false, agent: "shell" };
@@ -556,9 +554,9 @@ function setStatus(value: string, state: "idle" | "working" | "online" | "error"
 
 async function copyPublicKey() {
   await navigator.clipboard.writeText(identity.authorizedKey);
-  hint.textContent = "公钥已复制。授权后回到这里连接。";
-  copyButton.textContent = "已复制";
-  setTimeout(() => (copyButton.textContent = "复制公钥以授权此设备"), 1600);
+  hint.textContent = "Public key copied. Authorize this device, then return here to connect.";
+  copyButton.textContent = "Copied";
+  setTimeout(() => (copyButton.textContent = "Copy public key to authorize this device"), 1600);
 }
 
 function send(message: object) {
@@ -621,13 +619,15 @@ function queueTerminalOutput(data: Uint8Array) {
 let maximumViewportHeight = window.visualViewport?.height || window.innerHeight;
 let keyboardOpen = false;
 let keyboardReserved = false;
-// 键盘缩短方式开关：true=纯 CSS（打空格才缩短，无重绘，默认）；false=fit（立即缩短，有重绘）。
+// Keyboard resize mode: true = CSS-only (resize on space, no redraw, default);
+// false = fit (resize immediately with a redraw).
 let keyboardCssMode = true;
 
-// 这台 iOS 设备会把 visualViewport 的高度更新延迟到键盘上第一次输入才发布，
-// resize 监听和轮询都拿不到及时值。因此打开键盘时立刻按「预估键盘高度」主动
-// 缩短 shell（只改 CSS 容器尺寸，xterm 与远端 PTY 行数不变、不重绘），等真实
-// 视口高度到达后再修正。实测键盘高度按横竖屏缓存，第二次起预估即实测值。
+// This iOS device delays publishing the visualViewport height until the first
+// keyboard input, so resize listeners and polling cannot react in time. When the
+// keyboard opens, reserve an estimated keyboard height immediately by changing
+// only the shell CSS; xterm and the remote PTY keep their size. Correct it once
+// the real viewport height arrives. The estimate is cached per orientation.
 const KEYBOARD_HEIGHT_STORAGE_KEY = "webssh.keyboardHeight.v1";
 let cachedKeyboardHeights: { portrait?: number; landscape?: number } = {};
 try {
@@ -663,9 +663,10 @@ function updateVisualViewport(shouldFit = true) {
   const top = viewport?.offsetTop || 0;
   if (height > maximumViewportHeight) maximumViewportHeight = height;
   keyboardOpen = height < maximumViewportHeight - 100;
-  // 已预留键盘空间、但实测仍是全高：通常是键盘动画期间 iOS 在发布真实高度前
-  // 触发的杂散 resize，不能让它把预留高度覆盖回去。但若焦点已不在终端上，
-  // 说明键盘其实已消失（后台切换可能丢 blur），撤销预留并按全高恢复。
+  // If keyboard space is reserved but the measured viewport is still full height,
+  // this is usually a stray resize during the iOS keyboard animation. Do not let
+  // it overwrite the reservation. If focus left the terminal, the keyboard is
+  // actually gone, so release the reservation and restore full height.
   if (keyboardReserved && !keyboardOpen) {
     if (document.activeElement === terminalInput) return;
     keyboardReserved = false;
@@ -675,8 +676,9 @@ function updateVisualViewport(shouldFit = true) {
   document.documentElement.style.setProperty("--viewport-height", `${height}px`);
   document.documentElement.style.setProperty("--viewport-top", `${top}px`);
   document.documentElement.classList.toggle("keyboard-open", keyboardOpen);
-  // 纯 CSS 模式（默认）：只在键盘关闭后 fit 恢复全高；键盘打开时只缩容器（打空格才缩短，无重绘）。
-  // fit 模式：键盘开合期间都 fit 重排行数并同步远端 resize（立即缩短，Codex 重绘）。
+  // CSS-only mode (default): fit back to full height only after keyboard close;
+  // while open, resize the container without redrawing (space triggers resize).
+  // Fit mode redraws and syncs the remote PTY during keyboard transitions.
   if (shouldFit && (!keyboardCssMode || !keyboardOpen)) fitTerminal(false);
 }
 
@@ -687,14 +689,15 @@ function reserveForKeyboard() {
   document.documentElement.classList.add("keyboard-requested");
   document.documentElement.style.setProperty("--viewport-height", `${reserved}px`);
   document.documentElement.style.setProperty("--viewport-top", "0px");
-  // fit 模式：立即 fit 重排行数（canvas 真实 resize 逼 iOS 提交画面），同步远端 resize。
+  // Fit mode: immediately resize rows (a real canvas resize forces iOS to commit
+  // the frame) and synchronize the remote PTY.
   if (!keyboardCssMode) fitTerminal(false);
   requestAnimationFrame(flushTerminalPaint);
   window.setTimeout(flushTerminalPaint, 350);
 }
 
-// fit 已通过 canvas resize 逼 iOS 提交画面；这里再 refresh 一遍 xterm 并把 shell
-// 提升为独立合成层作为双保险，确保当帧可见。不改任何额外几何。
+  // Fit already forces a frame through canvas resize. Refresh xterm once more and
+  // promote the shell to its own compositing layer as a second safeguard.
 let shellLayerPromoted = false;
 function flushTerminalPaint() {
   terminal.refresh(0, terminal.rows - 1);
@@ -709,15 +712,17 @@ function releaseKeyboardReservation() {
   if (!keyboardReserved) return;
   keyboardReserved = false;
   document.documentElement.classList.remove("keyboard-requested");
-  // 收起动画期间视口高度未必已恢复，立刻刷新一次，动画结束后再校对两次。
+  // The viewport may not have recovered during the close animation. Refresh now,
+  // then verify twice after the animation ends.
   updateVisualViewport(true);
   flushTerminalPaint();
   window.setTimeout(() => { updateVisualViewport(true); flushTerminalPaint(); }, 250);
   window.setTimeout(() => { updateVisualViewport(true); flushTerminalPaint(); }, 700);
 }
 
-// iOS 会延迟 visualViewport 的 resize 事件，直到第一次按键才触发。键盘展开后
-// 主动轮询视口高度：变化时立即缩短 terminal，稳定后补一次 fit 重排行数。
+// iOS delays visualViewport resize events until the first keypress. After the
+// keyboard opens, poll the viewport: resize the terminal on changes and fit once
+// the height stabilizes.
 function pollViewportUntilStable() {
   let lastHeight = window.visualViewport?.height ?? window.innerHeight;
   let stableFrames = 0;
@@ -751,7 +756,7 @@ function connect() {
   if (socket && socket.readyState <= WebSocket.OPEN) return;
   shouldReconnect = true;
   connectButton.disabled = true;
-  setStatus(`连接 ${appConfig.gatewayLabel}…`, "working");
+  setStatus(`Connecting to ${appConfig.gatewayLabel}…`, "working");
   socket = new WebSocket(websocketUrl());
   initialTab.socket = socket;
 
@@ -801,11 +806,11 @@ function connect() {
           send({ type: "resize", cols: terminal.cols, rows: terminal.rows });
           if (!isMobileDevice) terminal.focus();
         });
-        setStatus(`已连接 · ${appConfig.targetLabel}`, "online");
+        setStatus(`Connected · ${appConfig.targetLabel}`, "online");
       } else if (message.status === "connecting") {
-        setStatus(message.message || "SSH 验证中…", "working");
+        setStatus(message.message || "Authenticating SSH…", "working");
       } else {
-        setStatus(message.message || "连接已断开", "error");
+        setStatus(message.message || "Connection closed", "error");
         connectButton.disabled = false;
       }
     }
@@ -813,11 +818,11 @@ function connect() {
 
   socket.addEventListener("close", () => {
     socket = undefined;
-    setStatus("已断开，可重新连接", "error");
+    setStatus("Disconnected; ready to reconnect", "error");
     connectButton.disabled = false;
   });
 
-  socket.addEventListener("error", () => setStatus(`无法连接 ${appConfig.gatewayLabel}`, "error"));
+  socket.addEventListener("error", () => setStatus(`Unable to connect to ${appConfig.gatewayLabel}`, "error"));
 }
 
 terminal.onData((data) => {
@@ -840,11 +845,11 @@ function updateKeyboardFitButton() {
   ctrlDButton?.classList.toggle("keyboard-css-off", !keyboardCssMode);
   ctrlDButton?.setAttribute(
     "aria-label",
-    keyboardCssMode ? "键盘缩短：打空格才缩短（无重绘）" : "键盘缩短：立即缩短（有重绘）",
+    keyboardCssMode ? "Keyboard resize: resize on space (no redraw)" : "Keyboard resize: resize immediately (redraw)",
   );
   ctrlDButton?.setAttribute(
     "title",
-    keyboardCssMode ? "点按切换为立即缩短模式" : "点按切换为无重绘模式",
+    keyboardCssMode ? "Tap to switch to immediate resize mode" : "Tap to switch to no-redraw mode",
   );
 }
 ctrlDButton?.addEventListener("pointerdown", (event) => {
@@ -867,25 +872,25 @@ bindControlKey("#enter-key", "\r");
 type AgentCommand = { command: string; description: string };
 const agentCommands: Record<Exclude<AgentKind, "shell">, AgentCommand[]> = {
   codex: [
-    { command: "/status", description: "会话与用量" },
-    { command: "/model", description: "查看或切换模型" },
-    { command: "/compact", description: "压缩当前上下文" },
-    { command: "/help", description: "查看可用命令" },
+    { command: "/status", description: "Session and usage" },
+    { command: "/model", description: "View or switch model" },
+    { command: "/compact", description: "Compact the current context" },
+    { command: "/help", description: "Show available commands" },
   ],
   hermes: [
-    { command: "/status", description: "会话、模型与上下文" },
-    { command: "/model", description: "查看或切换模型" },
-    { command: "/sessions", description: "浏览历史会话" },
-    { command: "/resume", description: "恢复历史会话" },
-    { command: "/compress", description: "压缩当前上下文" },
-    { command: "/help", description: "查看可用命令" },
+    { command: "/status", description: "Session, model, and context" },
+    { command: "/model", description: "View or switch model" },
+    { command: "/sessions", description: "Browse past sessions" },
+    { command: "/resume", description: "Resume a past session" },
+    { command: "/compress", description: "Compress the current context" },
+    { command: "/help", description: "Show available commands" },
   ],
   openclaw: [
-    { command: "/status", description: "运行状态与用量" },
-    { command: "/model", description: "查看或切换模型" },
-    { command: "/sessions", description: "浏览历史会话" },
-    { command: "/compact", description: "压缩当前上下文" },
-    { command: "/help", description: "查看可用命令" },
+    { command: "/status", description: "Runtime status and usage" },
+    { command: "/model", description: "View or switch model" },
+    { command: "/sessions", description: "Browse past sessions" },
+    { command: "/compact", description: "Compact the current context" },
+    { command: "/help", description: "Show available commands" },
   ],
 };
 const agentLabels: Record<Exclude<AgentKind, "shell">, string> = {
@@ -905,14 +910,14 @@ function renderAgentCommandMenu() {
   const agent = activeTab?.agent ?? "shell";
   agentCommandsButton.disabled = agent === "shell";
   if (agent === "shell") {
-    agentCommandsButton.title = "请先通过 C、H 或 O 打开 agent";
+    agentCommandsButton.title = "Open an agent first with C, H, or O";
     agentCommandMenu.replaceChildren();
     return;
   }
   const label = agentLabels[agent];
   agentCommandsButton.title = `${label} commands`;
-  agentCommandsButton.setAttribute("aria-label", `打开 ${label} 常用命令`);
-  agentCommandMenu.setAttribute("aria-label", `${label} 常用命令`);
+  agentCommandsButton.setAttribute("aria-label", `Open common ${label} commands`);
+  agentCommandMenu.setAttribute("aria-label", `${label} common commands`);
   const heading = document.createElement("div");
   heading.className = "slash-menu-heading";
   heading.textContent = `${label} Commands`;
@@ -1054,7 +1059,8 @@ document.querySelector("#keyboard-open")?.addEventListener("pointerdown", (event
   allowTerminalFocus = true;
   terminal.focus();
   pollViewportUntilStable();
-  // iOS 拒绝了程序化 focus（键盘没弹出来）时撤销预留，避免白留白一块。
+  // If iOS rejects programmatic focus and the keyboard does not open, release the
+  // reservation to avoid leaving an empty gap.
   window.setTimeout(() => {
     if (document.activeElement !== terminalInput) releaseKeyboardReservation();
   }, 600);
@@ -1095,7 +1101,7 @@ document.querySelector("#exit-ssh")?.addEventListener("click", () => {
     onboarding.hidden = false;
     commandBar.classList.remove("visible");
     tabBar.hidden = true;
-    setStatus("已退出 SSH");
+    setStatus("SSH session exited");
     return;
   }
   if (closingIndex >= 0) tabs.splice(closingIndex, 1);
@@ -1148,9 +1154,9 @@ getOrCreateIdentity()
     (document.querySelector("#public-key") as HTMLTextAreaElement).value = value.authorizedKey;
     connectButton.disabled = false;
     copyButton.disabled = false;
-    setStatus("设备密钥就绪");
+    setStatus("Device key ready");
   })
   .catch((error) => {
     hint.textContent = error instanceof Error ? error.message : String(error);
-    setStatus("浏览器不支持设备密钥", "error");
+    setStatus("This browser does not support device keys", "error");
   });
