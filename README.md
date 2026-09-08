@@ -33,6 +33,12 @@ The remote SSH server should continue to enforce public-key authentication.
 The gateway should be protected by HTTPS, a strict same-origin policy, and an
 additional access layer such as Cloudflare Access where appropriate.
 
+Each terminal tab owns an independent WebSocket and SSH session. Logging out
+closes and destroys only the active tab; the application returns to the connect
+screen after the final tab is closed. The browser does not impose a fixed tab
+count, while the gateway limits concurrent sessions with `MAX_CONNECTIONS`
+(`12` by default).
+
 ## Requirements
 
 This is self-hosted infrastructure, not a zero-configuration static website.
@@ -143,6 +149,24 @@ The `⋯` menu is per terminal tab:
 The menu state is inferred from the C/H/O buttons. If an agent is launched
 manually inside the shell, the menu state may remain unknown until one of those
 buttons is used.
+
+## Mobile input
+
+The terminal supports ordinary mobile keyboard input, Chinese IME composition,
+and iOS dictation. iOS dictation may publish changing provisional transcript
+snapshots before committing the final text in smaller chunks; Open WebSSH
+reconciles those updates so a full provisional phrase is not appended multiple
+times. Input handling is shared by every terminal tab.
+
+Mobile browser keyboard and viewport behavior varies by browser and OS release.
+The `⇄` button switches between the available resize strategies when the native
+keyboard and terminal viewport do not resize cleanly.
+
+For local input troubleshooting, append `?ime-debug=1` to the application URL.
+This displays an in-page event log with Clear and Copy controls. Diagnostics are
+disabled completely for normal URLs and are never uploaded by the application.
+The log can contain text entered into the terminal, so enable it only while
+troubleshooting and review it before sharing.
 
 ## Production deployment
 
