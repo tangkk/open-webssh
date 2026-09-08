@@ -222,7 +222,9 @@ function handleDictationInput(data: string) {
     dictationState = { rendered: data, lastEventAt: now, provisional: false, finalizing: false };
     imeLog("dictation-send", JSON.stringify(data));
     sendTerminalInput(data);
-    scheduleDictationReset(900);
+    // A dictation session can expose only one provisional snapshot and wait
+    // several seconds before emitting the final character burst.
+    scheduleDictationReset(5000);
     return;
   }
 
@@ -233,9 +235,10 @@ function handleDictationInput(data: string) {
     dictationState.provisional = true;
   }
 
-  if (dictationState.provisional && !dictationState.finalizing && gap >= 800) {
+  if (!dictationState.finalizing && gap >= 1000) {
     // iOS first publishes changing transcript snapshots, then commits the final
-    // text as a rapid sequence of smaller chunks after a pause.
+    // text as a rapid sequence of smaller chunks after a pause. There may be
+    // only one provisional snapshot before this final burst.
     dictationState.finalizing = true;
     replaceDictationSnapshot(dictationState.rendered, data);
     dictationState.rendered = data;
