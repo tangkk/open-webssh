@@ -143,7 +143,7 @@ h1 { margin: 0; font-size: clamp(36px, 11vw, 48px); line-height: 1; letter-spaci
 .key-card span, dialog label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .08em; }
 .key-card code { display: block; overflow: hidden; color: var(--ink); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .target-picker-label { display: block; margin: 0 0 5px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .08em; }
-.target-select { width: 100%; min-height: 42px; margin: 0 0 10px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: #fff; color: var(--ink); font-size: 13px; }
+.target-select { width: 100%; min-height: 46px; margin: 0 0 10px; padding: 0 14px; border: 1px solid var(--ink); border-radius: 999px; background: #fff; color: var(--ink); font-size: 13px; font-weight: 700; }
 .target-select:disabled { opacity: .45; }
 .primary, .secondary { width: 100%; min-height: 46px; border-radius: 999px; font-size: 13px; font-weight: 700; }
 .primary { border: 1px solid var(--ink); background: var(--ink); color: #fff; }
