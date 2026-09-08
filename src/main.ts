@@ -277,7 +277,9 @@ function configureTerminalInput(textarea: HTMLTextAreaElement | null, tabTermina
     tabTerminal.blur();
   });
   textarea.addEventListener("blur", () => {
-    resetDictationState();
+    // iOS briefly blurs xterm's textarea between provisional dictation and
+    // the final character burst. Keep dictation state across that focus churn;
+    // its timer, a real keydown, or a tab switch will clear it safely.
     releaseKeyboardReservation();
   });
   textarea.addEventListener("compositionstart", () => {
