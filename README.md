@@ -133,7 +133,7 @@ are intentionally sent only after a deliberate button press.
 | `C` | Start/resume Codex with `codex resume --all --no-alt-screen` |
 | `H` | Start Hermes and open its session picker |
 | `O` | Start OpenClaw and open its session picker |
-| `T` | Attach to the configured tmux session; its command menu defaults to Codex |
+| `T` | List and attach to a tmux session; its command menu defaults to Codex |
 | `⋯` | Open the active agent's slash-command menu |
 | `⧉` | Copy the selected terminal text |
 | `⎘` | Paste clipboard text into the terminal |

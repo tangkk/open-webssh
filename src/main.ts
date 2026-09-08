@@ -15,7 +15,10 @@ type ServerMessage =
   | { type: "status"; status: "connecting" | "connected" | "closed"; message?: string }
   | { type: "output"; data: string }
   | { type: "sign_request"; id: string; data: string }
+  | { type: "tmux_sessions"; sessions: TmuxSession[]; error?: string }
   | { type: "error"; message: string };
+
+type TmuxSession = { name: string; windows: number; attached: boolean };
 
 type ThemeName = "signal" | "tokyo-night" | "catppuccin-mocha" | "gruvbox-dark" | "github-light" | "catppuccin-latte" | "gruvbox-light";
 type ThemeDefinition = {
@@ -117,7 +120,7 @@ app.innerHTML = `
         <button class="control-key agent-key" id="codex-resume" type="button" aria-label="Send codex resume --all --no-alt-screen" title="Codex">C</button>
         <button class="control-key agent-key" id="hermes-sessions" type="button" aria-label="Open Hermes and list sessions" title="Hermes">H</button>
         <button class="control-key agent-key" id="openclaw-sessions" type="button" aria-label="Open OpenClaw and list sessions" title="OpenClaw">O</button>
-        <button class="control-key agent-key" id="tmux-attach" type="button" aria-label="Attach to tmux session ${appConfig.tmuxSession}" title="tmux ${appConfig.tmuxSession}">T</button>
+        <button class="control-key agent-key" id="tmux-attach" type="button" aria-label="Choose a tmux session" aria-expanded="false" title="tmux sessions">T</button>
         <button class="control-key agent-key" id="agent-commands" type="button" aria-label="Open common commands for the current agent" aria-expanded="false" title="Agent commands">⋯</button>
         <button class="control-key copy-key" id="copy-selection" type="button" aria-label="Copy selected text" disabled>⧉</button>
         <button class="control-key" id="paste" type="button" aria-label="Paste clipboard contents">⎘</button>
@@ -138,6 +141,7 @@ app.innerHTML = `
         <button class="control-key enter-key" id="enter-key" type="button" aria-label="Send Enter">↵</button>
       </div>
       <div class="slash-menu" id="agent-command-menu" role="menu" aria-label="Common commands for the current agent" hidden></div>
+      <div class="slash-menu" id="tmux-session-menu" role="menu" aria-label="Tmux sessions" hidden></div>
     </div>
     <dialog id="device-dialog">
       <form method="dialog">
@@ -538,7 +542,7 @@ function createAdditionalTab() {
 function connectTab(tab: TerminalTab) {
   const tabSocket = new WebSocket(websocketUrl()); tab.socket = tabSocket;
   tabSocket.addEventListener("open", () => { tab.socket = tabSocket; if (activeTab === tab) socket = tabSocket; sendToTab(tab, { type: "hello", keyBlob: bytesToBase64(identity.keyBlob), publicKey: identity.authorizedKey, fingerprint: identity.fingerprint, cols: tab.terminal.cols, rows: tab.terminal.rows }); });
-  tabSocket.addEventListener("message", async (event) => { const message = JSON.parse(String(event.data)) as ServerMessage; if (message.type === "sign_request") { try { const signature = await signAgentChallenge(identity, base64ToBytes(message.data)); if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, signature })); } catch (error) { if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, error: String(error) })); } return; } if (message.type === "output") tab.terminal.write(base64ToBytes(message.data)); if (message.type === "status" && tab === activeTab) { if (message.status === "connecting") setStatus(message.message || "Authenticating SSH…", "working"); if (message.status === "connected") { setStatus(`Connected · ${appConfig.targetLabel}`, "online"); fitTerminal(); } if (message.status === "closed") setStatus(message.message || "Connection closed", "error"); } });
+  tabSocket.addEventListener("message", async (event) => { const message = JSON.parse(String(event.data)) as ServerMessage; if (message.type === "sign_request") { try { const signature = await signAgentChallenge(identity, base64ToBytes(message.data)); if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, signature })); } catch (error) { if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, error: String(error) })); } return; } if (message.type === "output") tab.terminal.write(base64ToBytes(message.data)); if (message.type === "tmux_sessions" && tab === activeTab) renderTmuxSessionMenu(message.sessions, message.error); if (message.type === "status" && tab === activeTab) { if (message.status === "connecting") setStatus(message.message || "Authenticating SSH…", "working"); if (message.status === "connected") { setStatus(`Connected · ${appConfig.targetLabel}`, "online"); fitTerminal(); } if (message.status === "closed") setStatus(message.message || "Connection closed", "error"); } });
   tabSocket.addEventListener("close", () => { tab.socket = undefined; if (tab === activeTab) { socket = undefined; setStatus("Disconnected", "error"); } });
 }
 
@@ -788,6 +792,10 @@ function connect() {
       else initialTab.terminal.write(output);
       return;
     }
+    if (message.type === "tmux_sessions") {
+      renderTmuxSessionMenu(message.sessions, message.error);
+      return;
+    }
     if (message.type === "error") {
       setStatus(message.message, "error");
       hint.textContent = message.message;
@@ -967,12 +975,76 @@ document.addEventListener("pointerdown", (event) => {
   setAgentCommandMenu(false);
 });
 bindAgentLaunch("#codex-resume", "codex", "codex resume --all --no-alt-screen\r");
-document.querySelector("#tmux-attach")?.addEventListener("pointerdown", (event) => {
-  event.preventDefault();
+const tmuxAttachButton = document.querySelector<HTMLButtonElement>("#tmux-attach");
+const tmuxSessionMenu = document.querySelector<HTMLElement>("#tmux-session-menu");
+function setTmuxSessionMenu(open: boolean) {
+  if (!tmuxSessionMenu || !tmuxAttachButton) return;
+  tmuxSessionMenu.hidden = !open;
+  tmuxAttachButton.setAttribute("aria-expanded", String(open));
+}
+function shellQuote(value: string) {
+  return `'${value.replaceAll("'", "'\\\"'\\\"'")}'`;
+}
+function attachTmuxSession(sessionName: string) {
   tmuxAttached = true;
   if (activeTab) activeTab.tmuxAttached = true;
   setActiveAgent("codex");
-  sendTerminalInput(`tmux attach-session -t ${appConfig.tmuxSession}\r`);
+  sendTerminalInput(`tmux attach-session -t -- ${shellQuote(sessionName)}\r`);
+  setTmuxSessionMenu(false);
+}
+function renderTmuxSessionMenu(sessions?: TmuxSession[], error?: string) {
+  if (!tmuxSessionMenu) return;
+  const heading = document.createElement("div");
+  heading.className = "slash-menu-heading";
+  heading.textContent = "Tmux Sessions";
+  if (!sessions) {
+    const loading = document.createElement("button");
+    loading.type = "button";
+    loading.disabled = true;
+    loading.textContent = "Loading sessions…";
+    tmuxSessionMenu.replaceChildren(heading, loading);
+    setTmuxSessionMenu(true);
+    return;
+  }
+  const items = sessions.map((session) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.tmuxSession = session.name;
+    const name = document.createElement("code");
+    name.textContent = session.name;
+    const detail = document.createElement("small");
+    detail.textContent = `${session.windows} window${session.windows === 1 ? "" : "s"}${session.attached ? " · attached" : ""}`;
+    button.append(name, detail);
+    return button;
+  });
+  if (items.length === 0) {
+    const empty = document.createElement("button");
+    empty.type = "button";
+    empty.disabled = true;
+    empty.textContent = error || "No tmux sessions found";
+    items.push(empty);
+  }
+  tmuxSessionMenu.replaceChildren(heading, ...items);
+  setTmuxSessionMenu(true);
+}
+tmuxAttachButton?.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  setAgentCommandMenu(false);
+  renderTmuxSessionMenu();
+  send({ type: "tmux_sessions" });
+});
+tmuxSessionMenu?.addEventListener("pointerdown", (event) => {
+  const item = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-tmux-session]");
+  if (!item?.dataset.tmuxSession) return;
+  event.preventDefault();
+  event.stopPropagation();
+  attachTmuxSession(item.dataset.tmuxSession);
+});
+document.addEventListener("pointerdown", (event) => {
+  if (!tmuxSessionMenu || tmuxSessionMenu.hidden) return;
+  if (tmuxSessionMenu.contains(event.target as Node) || tmuxAttachButton?.contains(event.target as Node)) return;
+  setTmuxSessionMenu(false);
 });
 function bindInteractiveCommand(selector: string, agent: Exclude<AgentKind, "shell">, entryCommand: string, followupCommand: string, delayMs = 2500) {
   document.querySelector(selector)?.addEventListener("pointerdown", (event) => {

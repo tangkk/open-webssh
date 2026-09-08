@@ -1,6 +1,7 @@
 import express from "express";
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -13,7 +14,10 @@ type ClientMessage =
   | { type: "hello"; keyBlob: string; fingerprint: string; cols: number; rows: number }
   | { type: "sign_response"; id: string; signature?: string; error?: string }
   | { type: "input"; data: string }
-  | { type: "resize"; cols: number; rows: number };
+  | { type: "resize"; cols: number; rows: number }
+  | { type: "tmux_sessions" };
+
+type TmuxSession = { name: string; windows: number; attached: boolean };
 
 const port = Number(process.env.PORT || 3000);
 const sshHost = process.env.SSH_HOST || "127.0.0.1";
@@ -84,11 +88,45 @@ function safeSize(value: number, fallback: number, maximum: number): number {
   return Number.isFinite(value) ? Math.max(2, Math.min(Math.floor(value), maximum)) : fallback;
 }
 
+function listTmuxSessions(agentSocket: string, strictHostKeyArgs: string[]): Promise<TmuxSession[]> {
+  const args = [
+    "-T",
+    "-p", sshPort,
+    "-o", "PreferredAuthentications=publickey",
+    "-o", "PasswordAuthentication=no",
+    "-o", "KbdInteractiveAuthentication=no",
+    "-o", "ForwardAgent=no",
+    "-o", "ConnectTimeout=8",
+    ...strictHostKeyArgs,
+    `${sshUser}@${sshHost}`,
+    "tmux list-sessions -F '#{session_name}\\t#{session_windows}\\t#{session_attached}'",
+  ];
+  return new Promise((resolve, reject) => {
+    execFile("ssh", args, {
+      env: { ...process.env, SSH_AUTH_SOCK: agentSocket },
+      timeout: 15_000,
+      maxBuffer: 64 * 1024,
+    }, (error, stdout) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(stdout.split(/\r?\n/).flatMap((line) => {
+        const [name, windows, attached] = line.split("\t");
+        if (!name) return [];
+        return [{ name, windows: Number.parseInt(windows, 10) || 0, attached: attached === "1" }];
+      }));
+    });
+  });
+}
+
 websocketServer.on("connection", (websocket) => {
   activeConnections += 1;
   let agent: BrowserAgent | undefined;
   let terminal: pty.IPty | undefined;
   let temporaryDirectory: string | undefined;
+  let agentSocket: string | undefined;
+  let strictHostKeyArgs: string[] = [];
   let initialized = false;
 
   const cleanup = async () => {
@@ -128,10 +166,10 @@ websocketServer.on("connection", (websocket) => {
 
       try {
         temporaryDirectory = await mkdtemp(join(tmpdir(), "webssh-"));
-        const agentSocket = join(temporaryDirectory, "agent.sock");
+        agentSocket = join(temporaryDirectory, "agent.sock");
         agent = new BrowserAgent(websocket, keyBlob);
         await agent.listen(agentSocket);
-        const strictHostKeyArgs = process.env.SSH_KNOWN_HOSTS
+        strictHostKeyArgs = process.env.SSH_KNOWN_HOSTS
           ? ["-o", "StrictHostKeyChecking=yes", "-o", `UserKnownHostsFile=${knownHostsFile}`]
           : ["-o", "StrictHostKeyChecking=accept-new"];
         const args = [
@@ -169,6 +207,13 @@ websocketServer.on("connection", (websocket) => {
 
     if (message.type === "sign_response") {
       agent?.receiveSignature(message.id, message.signature, message.error);
+    } else if (message.type === "tmux_sessions" && agentSocket && terminal) {
+      try {
+        const sessions = await listTmuxSessions(agentSocket, strictHostKeyArgs);
+        send(websocket, { type: "tmux_sessions", sessions });
+      } catch {
+        send(websocket, { type: "tmux_sessions", sessions: [], error: "Unable to list tmux sessions" });
+      }
     } else if (message.type === "input" && terminal) {
       terminal.write(Buffer.from(message.data, "base64").toString("utf8"));
     } else if (message.type === "resize" && terminal) {
