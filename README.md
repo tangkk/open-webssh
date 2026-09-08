@@ -89,23 +89,7 @@ Runtime variables used by the gateway:
 | `SSH_KNOWN_HOSTS` | Optional verified host-key file |
 | `ALLOWLIST_FILE` | Authorized browser-key fingerprints |
 | `MAX_CONNECTIONS` | Maximum simultaneous WebSSH sessions |
-| `TARGET_LABEL` | Target name shown by the health endpoint |
-| `GATEWAY_LABEL` | Gateway name used by the client UI |
-| `TMUX_SESSION` | Default tmux session used by the T button |
 | `TMUX_BIN` | Path to the tmux binary on the remote SSH host, when it is not in the non-interactive SSH PATH |
-
-Build-time UI variables use the `VITE_` prefix:
-
-```env
-VITE_WEBSSH_APP_NAME=Open WebSSH
-VITE_WEBSSH_TARGET_LABEL=Remote
-VITE_WEBSSH_GATEWAY_LABEL=Gateway
-VITE_WEBSSH_TMUX_SESSION=main
-```
-
-Build-time variables are visible to browser users. They are labels and
-routing defaults, not secrets. Never put passwords, API keys, Cloudflare
-tokens, private keys, `known_hosts`, or the device allowlist in Vite variables.
 
 ## Themes
 
@@ -177,7 +161,6 @@ export WEBSSH_PUBLIC_ORIGIN=https://ssh.example.com
 export WEBSSH_SSH_HOST=127.0.0.1
 export WEBSSH_SSH_PORT=2222
 export WEBSSH_SSH_USER=remote-user
-export WEBSSH_TMUX_SESSION=main
 export WEBSSH_TMUX_BIN=tmux
 
 npm run deploy
@@ -185,8 +168,7 @@ npm run deploy
 
 Optional variables include `WEBSSH_REMOTE_DIR`, `WEBSSH_REMOTE_ENV`,
 `WEBSSH_SYSTEMD_SERVICE`, `WEBSSH_SSH_KNOWN_HOSTS`,
-`WEBSSH_ALLOWLIST_FILE`, `WEBSSH_MAX_CONNECTIONS`,
-`WEBSSH_TARGET_LABEL`, `WEBSSH_GATEWAY_LABEL`, and `WEBSSH_APP_NAME`.
+`WEBSSH_ALLOWLIST_FILE`, `WEBSSH_MAX_CONNECTIONS`, and `WEBSSH_TMUX_BIN`.
 The script uses the current SSH key configuration for `scp`/`ssh`; it does not
 accept or transmit a root password.
 

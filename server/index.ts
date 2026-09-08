@@ -37,7 +37,7 @@ let activeConnections = 0;
 const app = express();
 app.disable("x-powered-by");
 app.get("/api/health", (_request, response) => {
-  response.json({ ok: true, target: process.env.TARGET_LABEL || "Remote", activeConnections });
+  response.json({ ok: true, activeConnections });
 });
 app.use(express.static(distDirectory, { etag: true, maxAge: "1y", immutable: true, index: false }));
 app.get("/{*path}", (_request, response) => {

@@ -8,7 +8,6 @@ import {
   signAgentChallenge,
   type DeviceIdentity,
 } from "./identity";
-import { appConfig } from "./config";
 import "./styles.css";
 
 type ServerMessage =
@@ -104,15 +103,15 @@ app.innerHTML = `
       <div id="terminal"></div>
       <section class="onboarding" id="onboarding">
         <p class="eyebrow">PRIVATE SSH ACCESS</p>
-        <div class="title-row"><h1>Web SSH</h1><span class="target-badge"><i></i>${appConfig.targetLabel}</span></div>
-        <p class="lede">A focused terminal gateway for ${appConfig.targetLabel}. The SSH private key stays in this device's browser; ${appConfig.gatewayLabel} only relays the session and never stores the private key.</p>
+        <div class="title-row"><h1>Web SSH</h1></div>
+        <p class="lede">A focused terminal gateway. The SSH private key stays in this device's browser; the gateway only relays the session and never stores the private key.</p>
         <div class="key-card">
           <span>This device's public-key fingerprint</span>
           <code id="fingerprint">Generating…</code>
         </div>
-        <button class="primary" id="connect" disabled>Connect to ${appConfig.targetLabel}</button>
+        <button class="primary" id="connect" disabled>Connect</button>
         <button class="secondary" id="copy-key" disabled>Copy public key to authorize this device</button>
-        <p class="hint" id="hint">On first use, add this public key to ${appConfig.targetLabel}.</p>
+        <p class="hint" id="hint">On first use, add this public key to the remote SSH account.</p>
       </section>
     </div>
     <div class="command-bar" id="command-bar" aria-label="Terminal controls">
@@ -561,7 +560,7 @@ function createAdditionalTab() {
 function connectTab(tab: TerminalTab) {
   const tabSocket = new WebSocket(websocketUrl()); tab.socket = tabSocket;
   tabSocket.addEventListener("open", () => { tab.socket = tabSocket; if (activeTab === tab) socket = tabSocket; sendToTab(tab, { type: "hello", keyBlob: bytesToBase64(identity.keyBlob), publicKey: identity.authorizedKey, fingerprint: identity.fingerprint, cols: tab.terminal.cols, rows: tab.terminal.rows }); });
-  tabSocket.addEventListener("message", async (event) => { const message = JSON.parse(String(event.data)) as ServerMessage; if (message.type === "sign_request") { try { const signature = await signAgentChallenge(identity, base64ToBytes(message.data)); if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, signature })); } catch (error) { if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, error: String(error) })); } return; } if (message.type === "output") tab.terminal.write(base64ToBytes(message.data)); if (message.type === "tmux_sessions" && tab === activeTab) renderTmuxSessionMenu(message.sessions, message.error); if (message.type === "status" && tab === activeTab) { if (message.status === "connecting") setStatus(message.message || "Authenticating SSH…", "working"); if (message.status === "connected") { setStatus(`Connected · ${appConfig.targetLabel}`, "online"); fitTerminal(); } if (message.status === "closed") setStatus(message.message || "Connection closed", "error"); } });
+  tabSocket.addEventListener("message", async (event) => { const message = JSON.parse(String(event.data)) as ServerMessage; if (message.type === "sign_request") { try { const signature = await signAgentChallenge(identity, base64ToBytes(message.data)); if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, signature })); } catch (error) { if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, error: String(error) })); } return; } if (message.type === "output") tab.terminal.write(base64ToBytes(message.data)); if (message.type === "tmux_sessions" && tab === activeTab) renderTmuxSessionMenu(message.sessions, message.error); if (message.type === "status" && tab === activeTab) { if (message.status === "connecting") setStatus(message.message || "Authenticating SSH…", "working"); if (message.status === "connected") { setStatus("Connected", "online"); fitTerminal(); } if (message.status === "closed") setStatus(message.message || "Connection closed", "error"); } });
   tabSocket.addEventListener("close", () => { tab.socket = undefined; if (tab === activeTab) { socket = undefined; setStatus("Disconnected", "error"); } });
 }
 
@@ -779,7 +778,7 @@ function connect() {
   if (socket && socket.readyState <= WebSocket.OPEN) return;
   shouldReconnect = true;
   connectButton.disabled = true;
-  setStatus(`Connecting to ${appConfig.gatewayLabel}…`, "working");
+  setStatus("Connecting…", "working");
   socket = new WebSocket(websocketUrl());
   initialTab.socket = socket;
 
@@ -833,7 +832,7 @@ function connect() {
           send({ type: "resize", cols: terminal.cols, rows: terminal.rows });
           if (!isMobileDevice) terminal.focus();
         });
-        setStatus(`Connected · ${appConfig.targetLabel}`, "online");
+        setStatus("Connected", "online");
       } else if (message.status === "connecting") {
         setStatus(message.message || "Authenticating SSH…", "working");
       } else {
@@ -849,7 +848,7 @@ function connect() {
     connectButton.disabled = false;
   });
 
-  socket.addEventListener("error", () => setStatus(`Unable to connect to ${appConfig.gatewayLabel}`, "error"));
+  socket.addEventListener("error", () => setStatus("Unable to connect", "error"));
 }
 
 terminal.onData((data) => {
