@@ -180,7 +180,82 @@ let imeComposing = false;
 let imeJustCommitted = false;
 let lastCommittedText = "";
 let lastTerminalKeydownAt = 0;
+type DictationState = {
+  rendered: string;
+  lastEventAt: number;
+  provisional: boolean;
+  finalizing: boolean;
+};
+let dictationState: DictationState | undefined;
+let dictationResetTimer: number | undefined;
+let suppressedNativeInput: { data: string; expiresAt: number } | undefined;
 const configuredTextareas = new WeakSet<HTMLTextAreaElement>();
+
+function resetDictationState() {
+  if (dictationResetTimer !== undefined) clearTimeout(dictationResetTimer);
+  dictationResetTimer = undefined;
+  dictationState = undefined;
+  suppressedNativeInput = undefined;
+}
+
+function scheduleDictationReset(delay: number) {
+  if (dictationResetTimer !== undefined) clearTimeout(dictationResetTimer);
+  dictationResetTimer = window.setTimeout(resetDictationState, delay);
+}
+
+function replaceDictationSnapshot(previous: string, next: string) {
+  const previousCharacters = [...previous];
+  const nextCharacters = [...next];
+  let commonPrefix = 0;
+  while (commonPrefix < previousCharacters.length && commonPrefix < nextCharacters.length && previousCharacters[commonPrefix] === nextCharacters[commonPrefix]) {
+    commonPrefix += 1;
+  }
+  const replacement = "\u007f".repeat(previousCharacters.length - commonPrefix) + nextCharacters.slice(commonPrefix).join("");
+  imeLog("dictation-send", JSON.stringify(replacement));
+  if (replacement) sendTerminalInput(replacement);
+}
+
+function handleDictationInput(data: string) {
+  const now = performance.now();
+  suppressedNativeInput = { data, expiresAt: now + 500 };
+  if (!dictationState) {
+    dictationState = { rendered: data, lastEventAt: now, provisional: false, finalizing: false };
+    imeLog("dictation-send", JSON.stringify(data));
+    sendTerminalInput(data);
+    scheduleDictationReset(900);
+    return;
+  }
+
+  const gap = now - dictationState.lastEventAt;
+  const dataLength = [...data].length;
+  const resemblesSnapshot = dataLength > 1 || data.startsWith(dictationState.rendered);
+  if (!dictationState.provisional && gap <= 700 && resemblesSnapshot) {
+    dictationState.provisional = true;
+  }
+
+  if (dictationState.provisional && !dictationState.finalizing && gap >= 800) {
+    // iOS first publishes changing transcript snapshots, then commits the final
+    // text as a rapid sequence of smaller chunks after a pause.
+    dictationState.finalizing = true;
+    replaceDictationSnapshot(dictationState.rendered, data);
+    dictationState.rendered = data;
+  } else if (dictationState.finalizing && gap <= 300) {
+    imeLog("dictation-send", JSON.stringify(data));
+    sendTerminalInput(data);
+    dictationState.rendered += data;
+  } else if (dictationState.provisional) {
+    replaceDictationSnapshot(dictationState.rendered, data);
+    dictationState.rendered = data;
+  } else {
+    // A lone no-keydown insertText can be an autocomplete choice rather than
+    // dictation. Keep independent choices independent.
+    imeLog("dictation-send", JSON.stringify(data));
+    sendTerminalInput(data);
+    dictationState.rendered = data;
+  }
+  dictationState.lastEventAt = now;
+  scheduleDictationReset(dictationState.finalizing ? 1200 : dictationState.provisional ? 5000 : 900);
+}
 
 function configureTerminalInput(textarea: HTMLTextAreaElement | null, tabTerminal: Terminal) {
   if (!textarea || configuredTextareas.has(textarea)) return;
@@ -199,6 +274,7 @@ function configureTerminalInput(textarea: HTMLTextAreaElement | null, tabTermina
     tabTerminal.blur();
   });
   textarea.addEventListener("blur", () => {
+    resetDictationState();
     releaseKeyboardReservation();
   });
   textarea.addEventListener("compositionstart", () => {
@@ -216,6 +292,11 @@ function configureTerminalInput(textarea: HTMLTextAreaElement | null, tabTermina
     const followsKeyboardEvent = performance.now() - lastTerminalKeydownAt < 120;
     lastTerminalKeydownAt = 0;
     if (!event.data || event.data === lastCommittedText) return;
+    if (!followsKeyboardEvent && !imeComposing && !event.isComposing && event.inputType === "insertText") {
+      event.preventDefault();
+      if (tabTerminal === terminal) handleDictationInput(event.data);
+      return;
+    }
     if (!followsKeyboardEvent) return;
     if (event.data.includes("\u3000")) {
       if (imeComposing || event.isComposing || imeJustCommitted) return;
@@ -239,6 +320,7 @@ document.addEventListener("keydown", (event) => {
   if (event.target === terminalInput) imeLog("keydown", `key=${event.key} keyCode=${event.keyCode} imeComposing=${imeComposing}`);
   if (event.target !== terminalInput) return;
   lastTerminalKeydownAt = performance.now();
+  resetDictationState();
   // During composition, block xterm keydown handling, which would send early.
   // keyCode 229 / key "Process" marks the iOS IME; block xterm's textarea-change
   // handler too, because it can resend the textarea delta after compositionend.
@@ -249,6 +331,12 @@ document.addEventListener("keydown", (event) => {
 document.addEventListener("input", (event) => {
   if (event.target === terminalInput) imeLog("input", `data=${JSON.stringify((event as InputEvent).data)} inputType=${(event as InputEvent).inputType}`);
   if (event.target !== terminalInput) return;
+  const inputData = (event as InputEvent).data || "";
+  if (suppressedNativeInput && performance.now() <= suppressedNativeInput.expiresAt && inputData === suppressedNativeInput.data) {
+    suppressedNativeInput = undefined;
+    event.stopImmediatePropagation();
+    return;
+  }
   if (imeComposing) { event.stopImmediatePropagation(); return; }
   // Block xterm's input event when iOS resends the same composed text after compositionend.
   if (lastCommittedText && (event as InputEvent).data === lastCommittedText) {
@@ -532,6 +620,7 @@ function activateTab(tab: TerminalTab, connectIfNeeded = true) {
   imeJustCommitted = false;
   lastCommittedText = "";
   lastTerminalKeydownAt = 0;
+  resetDictationState();
   activeTab = tab;
   terminal = tab.terminal;
   fit = tab.fit;
