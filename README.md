@@ -88,7 +88,7 @@ Runtime variables used by the gateway:
 | `SSH_USER` | Remote SSH login user |
 | `SSH_KNOWN_HOSTS` | Optional verified host-key file |
 | `ALLOWLIST_FILE` | Authorized browser-key fingerprints |
-| `MAX_CONNECTIONS` | Maximum simultaneous WebSSH sessions |
+| `MAX_CONNECTIONS` | Maximum simultaneous WebSSH sessions; this is the server-side tab limit |
 | `TMUX_BIN` | Path to the tmux binary on the remote SSH host, when it is not in the non-interactive SSH PATH |
 
 ## Themes

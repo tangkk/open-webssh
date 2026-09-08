@@ -168,73 +168,54 @@ let fit = new FitAddon();
 terminal.loadAddon(fit);
 let terminalHost = document.querySelector<HTMLElement>("#terminal")!;
 terminal.open(terminalHost);
-terminal.onScroll(() => updateScrollbarVisibility());
-terminal.buffer.onBufferChange(() => updateScrollbarVisibility());
 let terminalInput = terminalHost.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea");
 const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
   (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 let allowTerminalFocus = false;
-const keyboardGuardedTextareas = new WeakSet<HTMLTextAreaElement>();
-terminalHost.addEventListener("pointerdown", () => {
-  if (!isMobileDevice) terminal.focus();
-});
-function bindTextareaKeyboardGuards(textarea: HTMLTextAreaElement | null) {
-  if (!textarea || keyboardGuardedTextareas.has(textarea)) return;
-  keyboardGuardedTextareas.add(textarea);
+let imeComposing = false;
+let imeJustCommitted = false;
+let lastCommittedText = "";
+const configuredTextareas = new WeakSet<HTMLTextAreaElement>();
+function configureTerminalInput(textarea: HTMLTextAreaElement | null, tabTerminal: Terminal) {
+  if (!textarea || configuredTextareas.has(textarea)) return;
+  configuredTextareas.add(textarea);
+  textarea.setAttribute("lang", "zh-CN");
+  textarea.setAttribute("autocomplete", "off");
+  textarea.setAttribute("autocorrect", "off");
+  textarea.setAttribute("autocapitalize", "none");
+  textarea.setAttribute("spellcheck", "false");
   textarea.addEventListener("focus", () => {
     if (!isMobileDevice) return;
     if (allowTerminalFocus) {
       allowTerminalFocus = false;
       return;
     }
-    terminal.blur();
+    tabTerminal.blur();
   });
   textarea.addEventListener("blur", () => {
     releaseKeyboardReservation();
   });
-}
-bindTextareaKeyboardGuards(terminalInput);
-terminalInput?.setAttribute("lang", "zh-CN");
-terminalInput?.setAttribute("autocomplete", "off");
-terminalInput?.setAttribute("autocorrect", "off");
-terminalInput?.setAttribute("autocapitalize", "none");
-terminalInput?.setAttribute("spellcheck", "false");
-
-// iOS Chinese IME submits full-width punctuation and spaces directly through
-// beforeinput without a composition flow, which xterm 6 can drop. Forward only
-// non-ASCII text that is neither composing nor freshly committed; let xterm
-// handle composing CJK text, and leave ASCII to its keydown path to avoid duplicates.
-let imeComposing = false;
-let imeJustCommitted = false;
-let lastCommittedText = "";
-terminalInput?.addEventListener("compositionstart", () => {
-  imeLog("compstart");
-  imeComposing = true;
-  imeJustCommitted = false;
-  lastCommittedText = "";
-});
-terminalInput?.addEventListener("beforeinput", (event) => {
-  imeLog("beforeinput", `data=${JSON.stringify(event.data)} inputType=${event.inputType} isComposing=${event.isComposing}`);
-  if (!event.data) return;
-  // iOS may resend the same composed text as insertText after compositionend; skip it.
-  if (event.data === lastCommittedText) return;
-  // Full-width space U+3000 can be dropped by xterm 6 on iOS. Forward it only
-  // outside composition; during composition, let xterm handle it asynchronously.
-  if (event.data.includes("\u3000")) {
-    if (imeComposing || event.isComposing || imeJustCommitted) return;
+  textarea.addEventListener("compositionstart", () => {
+    imeLog("compstart");
+    imeComposing = true;
+    imeJustCommitted = false;
+    lastCommittedText = "";
+  });
+  textarea.addEventListener("beforeinput", (event) => {
+    imeLog("beforeinput", `data=${JSON.stringify(event.data)} inputType=${event.inputType} isComposing=${event.isComposing}`);
+    if (!event.data || event.data === lastCommittedText) return;
+    if (event.data.includes("\u3000")) {
+      if (imeComposing || event.isComposing || imeJustCommitted) return;
+      event.preventDefault();
+      if (tabTerminal === terminal) sendTerminalInput(event.data);
+      return;
+    }
+    if (imeComposing || event.isComposing || imeJustCommitted || event.inputType !== "insertText") return;
+    if (![...event.data].some((character) => character.codePointAt(0)! > 0x7f)) return;
     event.preventDefault();
-    sendTerminalInput(event.data);
-    return;
-  }
-  if (imeComposing || event.isComposing || imeJustCommitted) return;
-  // Handle only direct insertText as a fallback (full-width punctuation uses this inputType).
-  // insertCompositionText is handled by xterm at compositionend; preventDefault is
-  // unreliable on iOS, and forwarding it here would duplicate xterm's asynchronous send.
-  if (event.inputType !== "insertText") return;
-  if (![...event.data].some((character) => character.codePointAt(0)! > 0x7f)) return;
-  event.preventDefault();
-  sendTerminalInput(event.data);
-});
+    if (tabTerminal === terminal) sendTerminalInput(event.data);
+  });
+}
 
 // iOS composition bug in xterm 6: committing Chinese text can trigger multiple
 // send paths. Candidate selection may send through input, space/Enter may send
@@ -431,8 +412,6 @@ function bindTerminalTouchControls(host: HTMLElement) {
   host.addEventListener("touchcancel", handleTerminalTouchCancel, { passive: true, capture: true });
 }
 
-bindTerminalTouchControls(terminalHost);
-
 const onboarding = document.querySelector<HTMLElement>("#onboarding")!;
 const connectButton = document.querySelector<HTMLButtonElement>("#connect")!;
 const copyButton = document.querySelector<HTMLButtonElement>("#copy-key")!;
@@ -446,7 +425,20 @@ let socket: WebSocket | undefined;
 let shouldReconnect = false;
 let tmuxAttached = false;
 type AgentKind = "shell" | "codex" | "hermes" | "openclaw";
-type TerminalTab = { id: number; name: string; host: HTMLElement; terminal: Terminal; fit: FitAddon; socket?: WebSocket; tmuxAttached: boolean; agent: AgentKind };
+type TerminalTab = {
+  id: number;
+  name: string;
+  host: HTMLElement;
+  terminal: Terminal;
+  fit: FitAddon;
+  socket?: WebSocket;
+  tmuxAttached: boolean;
+  agent: AgentKind;
+  connectionState: "idle" | "connecting" | "connected" | "closed";
+  statusMessage?: string;
+  outputQueue: Uint8Array[];
+  outputFrame?: number;
+};
 const tabBar = document.querySelector<HTMLElement>("#tab-bar")!;
 const themeToggle = document.querySelector<HTMLButtonElement>("#theme-toggle")!;
 const themeMenu = document.querySelector<HTMLElement>("#theme-menu")!;
@@ -464,9 +456,13 @@ function renderTabs() {
     button.className = "terminal-tab";
     button.type = "button";
     button.dataset.active = String(tab === activeTab);
+    if (tab === activeTab) button.setAttribute("aria-current", "page");
     button.textContent = tab.name;
     button.addEventListener("click", () => activateTab(tab));
     tabBar.insertBefore(button, add);
+  });
+  requestAnimationFrame(() => {
+    tabBar.querySelector<HTMLElement>('.terminal-tab[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
   });
 }
 
@@ -513,20 +509,32 @@ function applyTheme(themeName: ThemeName) {
   renderThemeMenu();
 }
 
-function activateTab(tab: TerminalTab) {
+function activateTab(tab: TerminalTab, connectIfNeeded = true) {
+  if (inertiaFrame !== undefined) cancelAnimationFrame(inertiaFrame);
+  inertiaFrame = undefined;
+  if (longPressTimer !== undefined) clearTimeout(longPressTimer);
+  longPressTimer = undefined;
+  imeComposing = false;
+  imeJustCommitted = false;
+  lastCommittedText = "";
   activeTab = tab;
   terminal = tab.terminal;
   fit = tab.fit;
   terminalHost = tab.host;
   terminalInput = terminalHost.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea");
-  bindTextareaKeyboardGuards(terminalInput);
+  configureTerminalInput(terminalInput, tab.terminal);
   selectionStart = undefined;
   selectionRange = undefined;
   longPressActive = false;
   copySelectionButton.disabled = !terminal.hasSelection();
   socket = tab.socket;
   tmuxAttached = tab.tmuxAttached;
+  if (tab.connectionState === "connected") setStatus("Connected", "online");
+  else if (tab.connectionState === "connecting") setStatus(tab.statusMessage || "Connecting…", "working");
+  else if (tab.connectionState === "closed") setStatus(tab.statusMessage || "Disconnected", "error");
   setAgentCommandMenu(false);
+  setTmuxSessionMenu(false);
+  setThemeMenu(false);
   renderAgentCommandMenu();
   tabs.forEach((item) => { item.host.hidden = item !== tab; });
   renderTabs();
@@ -535,6 +543,10 @@ function activateTab(tab: TerminalTab) {
   commandBar.classList.add("visible");
   fitTerminal();
   updateScrollbarVisibility();
+  if (connectIfNeeded && shouldReconnect && !tab.socket) {
+    tab.fit.fit();
+    connectTab(tab);
+  }
   if (!isMobileDevice) terminal.focus();
 }
 
@@ -545,28 +557,61 @@ function createAdditionalTab() {
   panels.appendChild(host);
   const nextTerminal = new Terminal({ cursorBlink: true, cursorStyle: "bar", fontFamily: '"SFMono-Regular", "SF Mono", Menlo, monospace', fontSize: 12, lineHeight: 1.18, scrollback: 4000, disableStdin: false, theme: themes[activeTheme].xterm });
   const nextFit = new FitAddon(); nextTerminal.loadAddon(nextFit); nextTerminal.open(host);
-  const tab: TerminalTab = { id: nextTabId++, name: `Terminal ${nextTabId - 1}`, host, terminal: nextTerminal, fit: nextFit, tmuxAttached: false, agent: "shell" };
+  const tab: TerminalTab = { id: nextTabId++, name: `Terminal ${nextTabId - 1}`, host, terminal: nextTerminal, fit: nextFit, tmuxAttached: false, agent: "shell", connectionState: "idle", outputQueue: [] };
   tabs.push(tab);
-  nextTerminal.onData((data) => { if (tab.socket?.readyState === WebSocket.OPEN) tab.socket.send(JSON.stringify({ type: "input", data: bytesToBase64(new TextEncoder().encode(data)) })); });
-  nextTerminal.onScroll(() => { if (activeTab === tab) updateScrollbarVisibility(); });
-  nextTerminal.buffer.onBufferChange(() => { if (activeTab === tab) updateScrollbarVisibility(); });
-  bindTerminalTouchControls(host);
-  bindTerminalSelectionTracking(nextTerminal);
-  host.addEventListener("pointerdown", () => { if (!isMobileDevice && activeTab === tab) nextTerminal.focus(); });
-  activateTab(tab);
+  bindTerminalBehavior(tab);
+  activateTab(tab, false);
+  nextFit.fit();
   connectTab(tab);
 }
 
 function connectTab(tab: TerminalTab) {
-  const tabSocket = new WebSocket(websocketUrl()); tab.socket = tabSocket;
+  const tabSocket = new WebSocket(websocketUrl());
+  tab.socket = tabSocket;
+  tab.connectionState = "connecting";
+  tab.statusMessage = "Connecting…";
+  if (activeTab === tab) setStatus(tab.statusMessage, "working");
   tabSocket.addEventListener("open", () => { tab.socket = tabSocket; if (activeTab === tab) socket = tabSocket; sendToTab(tab, { type: "hello", keyBlob: bytesToBase64(identity.keyBlob), publicKey: identity.authorizedKey, fingerprint: identity.fingerprint, cols: tab.terminal.cols, rows: tab.terminal.rows }); });
-  tabSocket.addEventListener("message", async (event) => { const message = JSON.parse(String(event.data)) as ServerMessage; if (message.type === "sign_request") { try { const signature = await signAgentChallenge(identity, base64ToBytes(message.data)); if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, signature })); } catch (error) { if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, error: String(error) })); } return; } if (message.type === "output") tab.terminal.write(base64ToBytes(message.data)); if (message.type === "tmux_sessions" && tab === activeTab) renderTmuxSessionMenu(message.sessions, message.error); if (message.type === "status" && tab === activeTab) { if (message.status === "connecting") setStatus(message.message || "Authenticating SSH…", "working"); if (message.status === "connected") { setStatus("Connected", "online"); fitTerminal(); } if (message.status === "closed") setStatus(message.message || "Connection closed", "error"); } });
-  tabSocket.addEventListener("close", () => { tab.socket = undefined; if (tab === activeTab) { socket = undefined; setStatus("Disconnected", "error"); } });
+  tabSocket.addEventListener("message", async (event) => {
+    const message = JSON.parse(String(event.data)) as ServerMessage;
+    if (message.type === "sign_request") {
+      try {
+        const signature = await signAgentChallenge(identity, base64ToBytes(message.data));
+        if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, signature }));
+      } catch (error) {
+        if (tabSocket.readyState === WebSocket.OPEN) tabSocket.send(JSON.stringify({ type: "sign_response", id: message.id, error: String(error) }));
+      }
+      return;
+    }
+    if (message.type === "output") queueTerminalOutput(tab, base64ToBytes(message.data));
+    if (message.type === "tmux_sessions" && tab === activeTab) renderTmuxSessionMenu(message.sessions, message.error);
+    if (message.type === "error") {
+      tab.connectionState = "closed";
+      tab.statusMessage = message.message;
+      if (tab === activeTab) setStatus(message.message, "error");
+    }
+    if (message.type === "status") {
+      tab.connectionState = message.status;
+      tab.statusMessage = message.message || (message.status === "connected" ? "Connected" : message.status === "connecting" ? "Authenticating SSH…" : "Connection closed");
+      if (tab !== activeTab) return;
+      if (message.status === "connecting") setStatus(message.message || "Authenticating SSH…", "working");
+      if (message.status === "connected") { setStatus("Connected", "online"); fitTerminal(); }
+      if (message.status === "closed") setStatus(message.message || "Connection closed", "error");
+    }
+  });
+  tabSocket.addEventListener("close", () => {
+    tab.socket = undefined;
+    const closeMessage = tab.connectionState === "closed" ? tab.statusMessage || "Disconnected" : "Disconnected";
+    tab.connectionState = "closed";
+    tab.statusMessage = closeMessage;
+    if (tab === activeTab) { socket = undefined; setStatus(closeMessage, "error"); }
+  });
 }
 
-const initialTab: TerminalTab = { id: nextTabId++, name: "Terminal 1", host: terminalHost, terminal, fit, tmuxAttached: false, agent: "shell" };
+const initialTab: TerminalTab = { id: nextTabId++, name: "Terminal 1", host: terminalHost, terminal, fit, tmuxAttached: false, agent: "shell", connectionState: "idle", outputQueue: [] };
 tabs.push(initialTab);
 activeTab = initialTab;
+bindTerminalBehavior(initialTab);
 renderTabs();
 
 function setStatus(value: string, state: "idle" | "working" | "online" | "error" = "idle") {
@@ -593,6 +638,25 @@ function sendTerminalInput(value: string) {
   send({ type: "input", data: bytesToBase64(new TextEncoder().encode(value)) });
 }
 
+function bindTerminalBehavior(tab: TerminalTab) {
+  tab.terminal.onData((data) => {
+    imeLog("SEND", JSON.stringify(data));
+    sendToTab(tab, { type: "input", data: bytesToBase64(new TextEncoder().encode(data)) });
+  });
+  tab.terminal.onScroll(() => {
+    if (activeTab === tab) updateScrollbarVisibility();
+  });
+  tab.terminal.buffer.onBufferChange(() => {
+    if (activeTab === tab) updateScrollbarVisibility();
+  });
+  bindTerminalTouchControls(tab.host);
+  bindTerminalSelectionTracking(tab.terminal);
+  configureTerminalInput(tab.host.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea"), tab.terminal);
+  tab.host.addEventListener("pointerdown", () => {
+    if (!isMobileDevice && activeTab === tab) tab.terminal.focus();
+  });
+}
+
 function fitTerminal(keepRemoteRows = false) {
   if (!onboarding.hidden) return;
   if (fitFrame !== undefined) return;
@@ -612,29 +676,27 @@ function fitTerminal(keepRemoteRows = false) {
   });
 }
 
-let outputQueue: Uint8Array[] = [];
-let outputFrame: number | undefined;
-function queueTerminalOutput(data: Uint8Array) {
-  outputQueue.push(data);
-  if (outputFrame !== undefined) return;
-  outputFrame = requestAnimationFrame(() => {
-    outputFrame = undefined;
+function queueTerminalOutput(tab: TerminalTab, data: Uint8Array) {
+  tab.outputQueue.push(data);
+  if (tab.outputFrame !== undefined) return;
+  tab.outputFrame = requestAnimationFrame(() => {
+    tab.outputFrame = undefined;
     const restoreDesktopFocus = () => {
-      if (!isMobileDevice && document.activeElement === document.body) terminal.focus();
+      if (!isMobileDevice && activeTab === tab && document.activeElement === document.body) tab.terminal.focus();
     };
-    if (outputQueue.length === 1) {
-      terminal.write(outputQueue[0], restoreDesktopFocus);
-    } else if (outputQueue.length > 1) {
-      const length = outputQueue.reduce((total, chunk) => total + chunk.length, 0);
+    if (tab.outputQueue.length === 1) {
+      tab.terminal.write(tab.outputQueue[0], restoreDesktopFocus);
+    } else if (tab.outputQueue.length > 1) {
+      const length = tab.outputQueue.reduce((total, chunk) => total + chunk.length, 0);
       const combined = new Uint8Array(length);
       let offset = 0;
-      for (const chunk of outputQueue) {
+      for (const chunk of tab.outputQueue) {
         combined.set(chunk, offset);
         offset += chunk.length;
       }
-      terminal.write(combined, restoreDesktopFocus);
+      tab.terminal.write(combined, restoreDesktopFocus);
     }
-    outputQueue = [];
+    tab.outputQueue = [];
   });
 }
 
@@ -775,39 +837,42 @@ function websocketUrl() {
 }
 
 function connect() {
-  if (socket && socket.readyState <= WebSocket.OPEN) return;
+  const tab = activeTab;
+  if (!tab || (tab.socket && tab.socket.readyState <= WebSocket.OPEN)) return;
   shouldReconnect = true;
   connectButton.disabled = true;
   setStatus("Connecting…", "working");
-  socket = new WebSocket(websocketUrl());
-  initialTab.socket = socket;
+  const tabSocket = new WebSocket(websocketUrl());
+  tab.socket = tabSocket;
+  tab.connectionState = "connecting";
+  tab.statusMessage = "Connecting…";
+  socket = tabSocket;
 
-  socket.addEventListener("open", () => {
-    send({
+  tabSocket.addEventListener("open", () => {
+    sendToTab(tab, {
       type: "hello",
       keyBlob: bytesToBase64(identity.keyBlob),
       publicKey: identity.authorizedKey,
       fingerprint: identity.fingerprint,
-      cols: terminal.cols,
-      rows: terminal.rows,
+      cols: tab.terminal.cols,
+      rows: tab.terminal.rows,
     });
   });
 
-  socket.addEventListener("message", async (event) => {
+  tabSocket.addEventListener("message", async (event) => {
     const message = JSON.parse(String(event.data)) as ServerMessage;
     if (message.type === "sign_request") {
       try {
         const signature = await signAgentChallenge(identity, base64ToBytes(message.data));
-        send({ type: "sign_response", id: message.id, signature });
+        sendToTab(tab, { type: "sign_response", id: message.id, signature });
       } catch (error) {
-        send({ type: "sign_response", id: message.id, error: String(error) });
+        sendToTab(tab, { type: "sign_response", id: message.id, error: String(error) });
       }
       return;
     }
     if (message.type === "output") {
       const output = base64ToBytes(message.data);
-      if (activeTab === initialTab) queueTerminalOutput(output);
-      else initialTab.terminal.write(output);
+      queueTerminalOutput(tab, output);
       return;
     }
     if (message.type === "tmux_sessions") {
@@ -815,12 +880,16 @@ function connect() {
       return;
     }
     if (message.type === "error") {
+      tab.connectionState = "closed";
+      tab.statusMessage = message.message;
       setStatus(message.message, "error");
       hint.textContent = message.message;
       connectButton.disabled = false;
       return;
     }
     if (message.type === "status") {
+      tab.connectionState = message.status;
+      tab.statusMessage = message.message || (message.status === "connected" ? "Connected" : message.status === "connecting" ? "Authenticating SSH…" : "Connection closed");
       if (message.status === "connected") {
         onboarding.hidden = true;
         document.querySelector(".shell")?.classList.add("connected");
@@ -828,9 +897,9 @@ function connect() {
         commandBar.classList.add("visible");
         renderTabs();
         requestAnimationFrame(() => {
-          fit.fit();
-          send({ type: "resize", cols: terminal.cols, rows: terminal.rows });
-          if (!isMobileDevice) terminal.focus();
+          tab.fit.fit();
+          sendToTab(tab, { type: "resize", cols: tab.terminal.cols, rows: tab.terminal.rows });
+          if (!isMobileDevice && activeTab === tab) tab.terminal.focus();
         });
         setStatus("Connected", "online");
       } else if (message.status === "connecting") {
@@ -842,19 +911,21 @@ function connect() {
     }
   });
 
-  socket.addEventListener("close", () => {
-    socket = undefined;
-    setStatus("Disconnected; ready to reconnect", "error");
+  tabSocket.addEventListener("close", () => {
+    tab.socket = undefined;
+    const closeMessage = tab.connectionState === "closed" ? tab.statusMessage || "Disconnected; ready to reconnect" : "Disconnected; ready to reconnect";
+    tab.connectionState = "closed";
+    tab.statusMessage = closeMessage;
+    if (activeTab === tab) socket = undefined;
+    if (activeTab === tab) setStatus(closeMessage, "error");
     connectButton.disabled = false;
   });
 
-  socket.addEventListener("error", () => setStatus("Unable to connect", "error"));
+  tabSocket.addEventListener("error", () => {
+    if (activeTab === tab) setStatus("Unable to connect", "error");
+  });
 }
 
-terminal.onData((data) => {
-  imeLog("SEND", JSON.stringify(data));
-  sendTerminalInput(data);
-});
 window.addEventListener("resize", () => { updateVisualViewport(true); });
 window.visualViewport?.addEventListener("resize", () => { updateVisualViewport(true); });
 document.addEventListener("visibilitychange", () => {
@@ -1083,7 +1154,6 @@ function bindTerminalSelectionTracking(tabTerminal: Terminal) {
     copySelectionButton.disabled = !selectionRange && !tabTerminal.hasSelection();
   });
 }
-bindTerminalSelectionTracking(terminal);
 function selectedTerminalText() {
   if (!selectionRange) return terminal.getSelection();
   const first = selectionRange.from.row * terminal.cols + selectionRange.from.column <=
@@ -1178,14 +1248,17 @@ document.querySelector("#page-down")?.addEventListener("pointerdown", (event) =>
 document.querySelector("#exit-ssh")?.addEventListener("click", () => {
   const closingTab = activeTab;
   if (!closingTab) return;
-  shouldReconnect = false;
   tmuxAttached = false;
   closingTab.agent = "shell";
   closingTab.socket?.close(1000, "user requested exit");
   closingTab.socket = undefined;
+  if (closingTab.outputFrame !== undefined) cancelAnimationFrame(closingTab.outputFrame);
+  closingTab.outputFrame = undefined;
+  closingTab.outputQueue = [];
   closingTab.terminal.reset();
   const closingIndex = tabs.indexOf(closingTab);
   if (tabs.length === 1) {
+    shouldReconnect = false;
     socket = undefined;
     activeTab = closingTab;
     terminal = closingTab.terminal;
@@ -1204,7 +1277,7 @@ document.querySelector("#exit-ssh")?.addEventListener("click", () => {
   const nextTab = tabs[Math.min(closingIndex, tabs.length - 1)];
   activateTab(nextTab);
 });
-document.querySelector("#tab-add")?.addEventListener("click", () => { if (tabs.length < 4) createAdditionalTab(); });
+document.querySelector("#tab-add")?.addEventListener("click", createAdditionalTab);
 themeToggle.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   event.stopPropagation();

@@ -30,7 +30,7 @@ const allowlistFile = process.env.ALLOWLIST_FILE || "/etc/webssh/allowed_fingerp
 const knownHostsFile = process.env.SSH_KNOWN_HOSTS || "/etc/webssh/known_hosts";
 const allowUnenrolled = process.env.WEBSSH_ALLOW_UNENROLLED === "1";
 const publicOrigin = process.env.PUBLIC_ORIGIN;
-const maxConnections = Number(process.env.MAX_CONNECTIONS || 4);
+const maxConnections = Math.max(1, Number.parseInt(process.env.MAX_CONNECTIONS || "12", 10) || 12);
 const distDirectory = resolve(process.cwd(), "dist");
 let activeConnections = 0;
 
