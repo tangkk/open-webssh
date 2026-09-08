@@ -92,7 +92,7 @@ Runtime variables used by the gateway:
 | `PUBLIC_ORIGIN` | Exact HTTPS origin accepted for WebSocket upgrades |
 | `SSH_HOST` / `SSH_PORT` | SSH endpoint reachable from the gateway |
 | `SSH_USER` | Remote SSH login user |
-| `SSH_KNOWN_HOSTS` | Optional verified host-key file |
+| `SSH_KNOWN_HOSTS` | Verified SSH host-key file; required in production |
 | `ALLOWLIST_FILE` | Authorized browser-key fingerprints |
 | `MAX_CONNECTIONS` | Maximum simultaneous WebSSH sessions; this is the server-side tab limit |
 | `TMUX_BIN` | Path to the tmux binary on the remote SSH host, when it is not in the non-interactive SSH PATH |
@@ -106,6 +106,11 @@ In production, startup fails if `PUBLIC_ORIGIN`, `SSH_HOST`, `SSH_PORT`,
 known-hosts and allowlist files must be readable and non-empty, and
 `WEBSSH_ALLOW_UNENROLLED=1` is rejected. This fail-closed validation prevents a
 configuration typo from silently weakening origin or SSH host-key checks.
+
+The gateway sends WebSocket heartbeats to detect abandoned browser connections
+and clean up their SSH PTY and temporary SSH agent. A heartbeat does not keep
+an iOS browser page alive in the background; use tmux for work that must
+survive a suspended or disconnected browser.
 
 ## Themes
 
