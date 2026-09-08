@@ -7,9 +7,9 @@ Wants=network-online.target
 Type=simple
 User=webssh
 Group=webssh
-WorkingDirectory=/opt/open-webssh
+WorkingDirectory=/opt/webssh
 Environment=NODE_ENV=production
-EnvironmentFile=/etc/open-webssh/webssh.env
+EnvironmentFile=/etc/webssh/webssh.env
 ExecStart=/usr/local/bin/npm start
 Restart=on-failure
 RestartSec=3
