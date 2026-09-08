@@ -118,9 +118,9 @@ Built-in themes:
 - Dark: Signal (default), Tokyo Night, Catppuccin Mocha, Gruvbox Dark
 - Light: GitHub Light, Catppuccin Latte, Gruvbox Light
 
-| Tokyo Night | Signal | GitHub Light |
-| --- | --- | --- |
-| <img src="https://files.tangkk-x2o.com/public/open-webssh/themes/previews/tokyo-night.png" alt="Tokyo Night theme on iPhone" width="180"> | <img src="https://files.tangkk-x2o.com/public/open-webssh/themes/previews/signal.png" alt="Signal theme on iPhone" width="180"> | <img src="https://files.tangkk-x2o.com/public/open-webssh/themes/previews/github-light.png" alt="GitHub Light theme on iPhone" width="180"> |
+| Tokyo Night | Signal | GitHub Light | Gruvbox Light |
+| --- | --- | --- | --- |
+| <img src="https://files.tangkk-x2o.com/public/open-webssh/themes/previews/tokyo-night.png" alt="Tokyo Night theme on iPhone" width="150"> | <img src="https://files.tangkk-x2o.com/public/open-webssh/themes/previews/signal.png" alt="Signal theme on iPhone" width="150"> | <img src="https://files.tangkk-x2o.com/public/open-webssh/themes/previews/github-light.png" alt="GitHub Light theme on iPhone" width="150"> | <img src="https://files.tangkk-x2o.com/public/open-webssh/themes/previews/gruvbox-light.png" alt="Gruvbox Light theme on iPhone" width="150"> |
 
 ## Extra keyboard
 
