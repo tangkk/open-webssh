@@ -7,8 +7,8 @@ set -euo pipefail
 : "${WEBSSH_SSH_PORT:?Set WEBSSH_SSH_PORT to the reverse SSH port}"
 
 deploy_user="${WEBSSH_DEPLOY_USER:-root}"
-remote_dir="${WEBSSH_REMOTE_DIR:-/opt/open-webssh}"
-remote_env="${WEBSSH_REMOTE_ENV:-/etc/open-webssh/webssh.env}"
+remote_dir="${WEBSSH_REMOTE_DIR:-/opt/webssh}"
+remote_env="${WEBSSH_REMOTE_ENV:-/etc/webssh/webssh.env}"
 service_name="${WEBSSH_SYSTEMD_SERVICE:-webssh.service}"
 remote_target="${deploy_user}@${WEBSSH_DEPLOY_HOST}"
 remote_env_dir="${remote_env%/*}"
@@ -28,8 +28,8 @@ PUBLIC_ORIGIN=${WEBSSH_PUBLIC_ORIGIN}
 SSH_HOST=${WEBSSH_SSH_HOST:-127.0.0.1}
 SSH_PORT=${WEBSSH_SSH_PORT}
 SSH_USER=${WEBSSH_SSH_USER}
-SSH_KNOWN_HOSTS=${WEBSSH_SSH_KNOWN_HOSTS:-/etc/open-webssh/known_hosts}
-ALLOWLIST_FILE=${WEBSSH_ALLOWLIST_FILE:-/etc/open-webssh/allowed_fingerprints}
+SSH_KNOWN_HOSTS=${WEBSSH_SSH_KNOWN_HOSTS:-/etc/webssh/known_hosts}
+ALLOWLIST_FILE=${WEBSSH_ALLOWLIST_FILE:-/etc/webssh/allowed_fingerprints}
 MAX_CONNECTIONS=${WEBSSH_MAX_CONNECTIONS:-4}
 TARGET_LABEL=${WEBSSH_TARGET_LABEL:-Remote}
 GATEWAY_LABEL=${WEBSSH_GATEWAY_LABEL:-Gateway}
