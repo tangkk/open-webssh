@@ -17,6 +17,57 @@ type ServerMessage =
   | { type: "sign_request"; id: string; data: string }
   | { type: "error"; message: string };
 
+type ThemeName = "signal" | "tokyo-night" | "catppuccin-mocha" | "gruvbox-dark";
+type ThemeDefinition = {
+  name: ThemeName;
+  label: string;
+  preview: [string, string, string];
+  xterm: {
+    background: string;
+    foreground: string;
+    cursor: string;
+    selectionBackground: string;
+    black: string;
+    red: string;
+    brightRed: string;
+    scrollbarSliderBackground: string;
+    scrollbarSliderHoverBackground: string;
+    scrollbarSliderActiveBackground: string;
+  };
+};
+
+const THEME_STORAGE_KEY = "webssh.theme.v1";
+const themes: Record<ThemeName, ThemeDefinition> = {
+  signal: {
+    name: "signal", label: "Signal", preview: ["#0b0d0c", "#33d17a", "#e4332a"],
+    xterm: { background: "#0b0d0c", foreground: "#e8e8e8", cursor: "#e4332a", selectionBackground: "#343434", black: "#141715", red: "#e4332a", brightRed: "#ff625a", scrollbarSliderBackground: "rgba(232, 232, 232, 0.3)", scrollbarSliderHoverBackground: "rgba(232, 232, 232, 0.45)", scrollbarSliderActiveBackground: "rgba(51, 209, 122, 0.55)" },
+  },
+  "tokyo-night": {
+    name: "tokyo-night", label: "Tokyo Night", preview: ["#1a1b26", "#7aa2f7", "#bb9af7"],
+    xterm: { background: "#1a1b26", foreground: "#c0caf5", cursor: "#7aa2f7", selectionBackground: "#33467c", black: "#15161e", red: "#f7768e", brightRed: "#ff9eae", scrollbarSliderBackground: "rgba(192, 202, 245, 0.3)", scrollbarSliderHoverBackground: "rgba(192, 202, 245, 0.48)", scrollbarSliderActiveBackground: "rgba(122, 162, 247, 0.66)" },
+  },
+  "catppuccin-mocha": {
+    name: "catppuccin-mocha", label: "Catppuccin Mocha", preview: ["#1e1e2e", "#cba6f7", "#f5c2e7"],
+    xterm: { background: "#1e1e2e", foreground: "#cdd6f4", cursor: "#f5c2e7", selectionBackground: "#45475a", black: "#181825", red: "#f38ba8", brightRed: "#f5a0b8", scrollbarSliderBackground: "rgba(205, 214, 244, 0.3)", scrollbarSliderHoverBackground: "rgba(205, 214, 244, 0.48)", scrollbarSliderActiveBackground: "rgba(203, 166, 247, 0.68)" },
+  },
+  "gruvbox-dark": {
+    name: "gruvbox-dark", label: "Gruvbox Dark", preview: ["#282828", "#fabd2f", "#b8bb26"],
+    xterm: { background: "#282828", foreground: "#ebdbb2", cursor: "#fabd2f", selectionBackground: "#504945", black: "#1d2021", red: "#fb4934", brightRed: "#ff6b55", scrollbarSliderBackground: "rgba(235, 219, 178, 0.3)", scrollbarSliderHoverBackground: "rgba(235, 219, 178, 0.48)", scrollbarSliderActiveBackground: "rgba(250, 189, 47, 0.68)" },
+  },
+};
+
+function storedTheme(): ThemeName {
+  try {
+    const candidate = localStorage.getItem(THEME_STORAGE_KEY);
+    if (candidate && candidate in themes) return candidate as ThemeName;
+  } catch {
+    // Default remains available when storage is unavailable.
+  }
+  return "signal";
+}
+
+let activeTheme = storedTheme();
+
 const app = document.querySelector<HTMLElement>("#app");
 if (!app) throw new Error("App root missing");
 
@@ -30,7 +81,11 @@ app.innerHTML = `
       <button class="icon-button" id="device-button" aria-label="设备密钥">密钥</button>
     </header>
     <div class="terminal-wrap" id="terminal-wrap">
-      <div class="tab-bar" id="tab-bar" hidden><button class="tab-add" id="tab-add" type="button" aria-label="新建 terminal">＋</button></div>
+      <div class="tab-bar" id="tab-bar" hidden>
+        <button class="tab-add" id="tab-add" type="button" aria-label="新建 terminal">＋</button>
+        <button class="tab-theme" id="theme-toggle" type="button" aria-label="选择主题" aria-expanded="false" title="Theme">◐</button>
+      </div>
+      <div class="theme-menu" id="theme-menu" role="menu" aria-label="终端主题" hidden></div>
       <div id="terminal"></div>
       <section class="onboarding" id="onboarding">
         <p class="eyebrow">PRIVATE SSH ACCESS</p>
@@ -92,18 +147,7 @@ let terminal = new Terminal({
   lineHeight: 1.18,
   scrollback: 4000,
   disableStdin: false,
-  theme: {
-    background: "#0b0d0c",
-    foreground: "#e8e8e8",
-    cursor: "#e4332a",
-    selectionBackground: "#343434",
-    black: "#141715",
-    red: "#e4332a",
-    brightRed: "#ff625a",
-    scrollbarSliderBackground: "rgba(232, 232, 232, 0.3)",
-    scrollbarSliderHoverBackground: "rgba(232, 232, 232, 0.45)",
-    scrollbarSliderActiveBackground: "rgba(51, 209, 122, 0.55)",
-  },
+  theme: themes[activeTheme].xterm,
 });
 let fit = new FitAddon();
 terminal.loadAddon(fit);
@@ -378,6 +422,8 @@ let tmuxAttached = false;
 type AgentKind = "shell" | "codex" | "hermes" | "openclaw";
 type TerminalTab = { id: number; name: string; host: HTMLElement; terminal: Terminal; fit: FitAddon; socket?: WebSocket; tmuxAttached: boolean; agent: AgentKind };
 const tabBar = document.querySelector<HTMLElement>("#tab-bar")!;
+const themeToggle = document.querySelector<HTMLButtonElement>("#theme-toggle")!;
+const themeMenu = document.querySelector<HTMLElement>("#theme-menu")!;
 const panels = document.querySelector<HTMLElement>("#terminal-wrap")!;
 const tabs: TerminalTab[] = [];
 let activeTab: TerminalTab | undefined;
@@ -396,6 +442,49 @@ function renderTabs() {
     button.addEventListener("click", () => activateTab(tab));
     tabBar.insertBefore(button, add);
   });
+}
+
+function renderThemeMenu() {
+  const choices = Object.values(themes).map((theme) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute("role", "menuitemradio");
+    button.dataset.theme = theme.name;
+    button.setAttribute("aria-checked", String(theme.name === activeTheme));
+    const preview = document.createElement("span");
+    preview.className = "theme-preview";
+    theme.preview.forEach((color) => {
+      const swatch = document.createElement("i");
+      swatch.style.background = color;
+      preview.appendChild(swatch);
+    });
+    const label = document.createElement("span");
+    label.textContent = theme.label;
+    button.append(preview, label);
+    return button;
+  });
+  themeMenu.replaceChildren(...choices);
+}
+
+function setThemeMenu(open: boolean) {
+  themeMenu.hidden = !open;
+  themeToggle.setAttribute("aria-expanded", String(open));
+}
+
+function applyTheme(themeName: ThemeName) {
+  activeTheme = themeName;
+  document.documentElement.dataset.theme = themeName;
+  const xtermTheme = themes[themeName].xterm;
+  tabs.forEach((tab) => {
+    tab.terminal.options.theme = xtermTheme;
+    tab.terminal.refresh(0, tab.terminal.rows - 1);
+  });
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, themeName);
+  } catch {
+    // The active theme still applies for this session.
+  }
+  renderThemeMenu();
 }
 
 function activateTab(tab: TerminalTab) {
@@ -424,7 +513,7 @@ function createAdditionalTab() {
   host.className = "terminal-panel";
   host.hidden = true;
   panels.appendChild(host);
-  const nextTerminal = new Terminal({ cursorBlink: true, cursorStyle: "bar", fontFamily: '"SFMono-Regular", "SF Mono", Menlo, monospace', fontSize: 12, lineHeight: 1.18, scrollback: 4000, disableStdin: false, theme: { background: "#0b0d0c", foreground: "#e8e8e8", cursor: "#e4332a", selectionBackground: "#343434", black: "#141715", red: "#e4332a", brightRed: "#ff625a", scrollbarSliderBackground: "rgba(232, 232, 232, 0.3)", scrollbarSliderHoverBackground: "rgba(232, 232, 232, 0.45)", scrollbarSliderActiveBackground: "rgba(51, 209, 122, 0.55)" } });
+  const nextTerminal = new Terminal({ cursorBlink: true, cursorStyle: "bar", fontFamily: '"SFMono-Regular", "SF Mono", Menlo, monospace', fontSize: 12, lineHeight: 1.18, scrollback: 4000, disableStdin: false, theme: themes[activeTheme].xterm });
   const nextFit = new FitAddon(); nextTerminal.loadAddon(nextFit); nextTerminal.open(host);
   const tab: TerminalTab = { id: nextTabId++, name: `Terminal ${nextTabId - 1}`, host, terminal: nextTerminal, fit: nextFit, tmuxAttached: false, agent: "shell" };
   tabs.push(tab);
@@ -1004,6 +1093,23 @@ document.querySelector("#exit-ssh")?.addEventListener("click", () => {
   activateTab(nextTab);
 });
 document.querySelector("#tab-add")?.addEventListener("click", () => { if (tabs.length < 4) createAdditionalTab(); });
+themeToggle.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  setThemeMenu(themeMenu.hidden);
+});
+themeMenu.addEventListener("pointerdown", (event) => {
+  const choice = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-theme]");
+  if (!choice) return;
+  event.preventDefault();
+  event.stopPropagation();
+  applyTheme(choice.dataset.theme as ThemeName);
+  setThemeMenu(false);
+});
+document.addEventListener("pointerdown", (event) => {
+  if (themeMenu.hidden || themeMenu.contains(event.target as Node) || themeToggle.contains(event.target as Node)) return;
+  setThemeMenu(false);
+});
 connectButton.addEventListener("click", connect);
 copyButton.addEventListener("click", () => void copyPublicKey());
 document.querySelector("#dialog-copy")?.addEventListener("click", () => void copyPublicKey());
@@ -1018,6 +1124,8 @@ function imeLog(label: string, detail?: string) {
   const list = document.getElementById("ime-debug-list");
   if (list) list.textContent = imeDebugLines.join("\n");
 }
+document.documentElement.dataset.theme = activeTheme;
+renderThemeMenu();
 updateVisualViewport();
 
 getOrCreateIdentity()

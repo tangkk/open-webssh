@@ -329,3 +329,115 @@ dialog textarea {
   border-color: rgba(255, 255, 255, .35) !important;
   color: #e8e8e8 !important;
 }
+
+/* Terminal themes: the same palette is applied to xterm in main.ts. */
+:root {
+  --terminal-surface: #0b0d0c;
+  --terminal-fg: #e8e8e8;
+  --terminal-muted: rgba(232, 232, 232, .68);
+  --terminal-border: rgba(255, 255, 255, .35);
+  --terminal-accent: #33d17a;
+  --terminal-accent-pressed: rgba(51, 209, 122, .14);
+  --tab-surface: rgba(11, 13, 12, .82);
+  --menu-surface: rgba(11, 13, 12, .98);
+}
+
+:root[data-theme="tokyo-night"] {
+  --terminal-surface: #1a1b26;
+  --terminal-fg: #c0caf5;
+  --terminal-muted: rgba(192, 202, 245, .68);
+  --terminal-border: rgba(192, 202, 245, .38);
+  --terminal-accent: #7aa2f7;
+  --terminal-accent-pressed: rgba(122, 162, 247, .16);
+  --tab-surface: rgba(26, 27, 38, .88);
+  --menu-surface: rgba(26, 27, 38, .98);
+}
+
+:root[data-theme="catppuccin-mocha"] {
+  --terminal-surface: #1e1e2e;
+  --terminal-fg: #cdd6f4;
+  --terminal-muted: rgba(205, 214, 244, .68);
+  --terminal-border: rgba(205, 214, 244, .36);
+  --terminal-accent: #cba6f7;
+  --terminal-accent-pressed: rgba(203, 166, 247, .16);
+  --tab-surface: rgba(30, 30, 46, .88);
+  --menu-surface: rgba(30, 30, 46, .98);
+}
+
+:root[data-theme="gruvbox-dark"] {
+  --terminal-surface: #282828;
+  --terminal-fg: #ebdbb2;
+  --terminal-muted: rgba(235, 219, 178, .66);
+  --terminal-border: rgba(235, 219, 178, .36);
+  --terminal-accent: #fabd2f;
+  --terminal-accent-pressed: rgba(250, 189, 47, .16);
+  --tab-surface: rgba(40, 40, 40, .9);
+  --menu-surface: rgba(40, 40, 40, .98);
+}
+
+html.connected, html.connected body, html.connected #app,
+.shell.connected, .terminal-wrap { background: var(--terminal-surface); }
+.terminal-tab, .tab-add, .tab-theme {
+  border-color: var(--terminal-border);
+  background: var(--tab-surface);
+  color: var(--terminal-fg);
+}
+.terminal-tab[data-active="true"], .tab-add, .tab-theme { border-color: var(--terminal-accent); color: var(--terminal-accent); }
+.tab-theme { flex: 0 0 auto; width: 32px; height: 28px; padding: 0; border-radius: 999px; font: 16px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.terminal-tab:active, .tab-add:active, .tab-theme:active { background: var(--terminal-accent-pressed); }
+
+.command-bar .control-key,
+.command-bar .exit-key {
+  border-color: var(--terminal-accent);
+  color: var(--terminal-accent);
+}
+.control-key:active, .exit-key:active {
+  border-color: var(--terminal-accent);
+  background: var(--terminal-accent-pressed);
+  color: var(--terminal-accent);
+}
+.command-bar .control-key.keyboard-css-off {
+  border-color: var(--terminal-border) !important;
+  color: var(--terminal-fg) !important;
+}
+
+.slash-menu, .theme-menu {
+  border-color: var(--terminal-accent);
+  background: var(--menu-surface);
+}
+.slash-menu-heading { color: var(--terminal-muted); }
+.slash-menu button { color: var(--terminal-fg); }
+.slash-menu button:active { background: var(--terminal-accent-pressed); }
+.slash-menu code { color: var(--terminal-accent); }
+.slash-menu small { color: var(--terminal-muted); }
+
+.theme-menu {
+  position: absolute;
+  top: 39px;
+  right: 8px;
+  z-index: 12;
+  width: min(212px, calc(100vw - 16px));
+  padding: 5px;
+  border: 1px solid;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .42);
+}
+.theme-menu[hidden] { display: none; }
+.theme-menu button {
+  width: 100%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--terminal-fg);
+  font: 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: left;
+}
+.theme-menu button[aria-checked="true"] { color: var(--terminal-accent); }
+.theme-menu button:active { background: var(--terminal-accent-pressed); }
+.theme-preview { display: flex; overflow: hidden; width: 33px; height: 15px; border: 1px solid var(--terminal-border); border-radius: 999px; }
+.theme-preview i { flex: 1; }
