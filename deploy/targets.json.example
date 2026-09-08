@@ -1,0 +1,23 @@
+{
+  "targets": [
+    {
+      "id": "primary",
+      "label": "Primary host",
+      "host": "127.0.0.1",
+      "port": 2222,
+      "user": "remote-user",
+      "knownHostsFile": "/etc/webssh/known_hosts-primary",
+      "tmuxBin": "tmux",
+      "capabilities": { "tmux": true, "agents": true }
+    },
+    {
+      "id": "secondary",
+      "label": "Secondary host",
+      "host": "127.0.0.1",
+      "port": 2223,
+      "user": "remote-user",
+      "knownHostsFile": "/etc/webssh/known_hosts-secondary",
+      "capabilities": { "tmux": false, "agents": false }
+    }
+  ]
+}

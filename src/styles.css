@@ -142,6 +142,9 @@ h1 { margin: 0; font-size: clamp(36px, 11vw, 48px); line-height: 1; letter-spaci
 }
 .key-card span, dialog label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .08em; }
 .key-card code { display: block; overflow: hidden; color: var(--ink); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.target-picker-label { display: block; margin: 0 0 5px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .08em; }
+.target-select { width: 100%; min-height: 42px; margin: 0 0 10px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: #fff; color: var(--ink); font-size: 13px; }
+.target-select:disabled { opacity: .45; }
 .primary, .secondary { width: 100%; min-height: 46px; border-radius: 999px; font-size: 13px; font-weight: 700; }
 .primary { border: 1px solid var(--ink); background: var(--ink); color: #fff; }
 .primary:hover { background: #333; }
@@ -435,6 +438,7 @@ html.connected, html.connected body, html.connected #app,
   border-color: var(--terminal-border) !important;
   color: var(--terminal-fg) !important;
 }
+.command-bar button:disabled { opacity: .32; }
 
 .slash-menu, .theme-menu {
   border-color: var(--terminal-accent);
@@ -458,6 +462,31 @@ html.connected, html.connected body, html.connected #app,
   box-shadow: 0 10px 28px rgba(0, 0, 0, .42);
 }
 .theme-menu[hidden] { display: none; }
+.target-menu {
+  position: absolute;
+  top: 39px;
+  left: 8px;
+  z-index: 12;
+  width: min(212px, calc(100vw - 16px));
+  padding: 5px;
+  border: 1px solid var(--terminal-accent);
+  border-radius: 12px;
+  background: var(--menu-surface);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .42);
+}
+.target-menu[hidden] { display: none; }
+.target-menu button {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--terminal-fg);
+  font: 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: left;
+}
+.target-menu button:active { background: var(--terminal-accent-pressed); }
 .theme-menu button {
   width: 100%;
   min-height: 38px;

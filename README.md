@@ -39,6 +39,17 @@ screen after the final tab is closed. The browser does not impose a fixed tab
 count, while the gateway limits concurrent sessions with `MAX_CONNECTIONS`
 (`12` by default).
 
+## Multiple SSH targets
+
+The connection screen selects the target for the first terminal. The `＋`
+button selects a target for each additional tab. A tab keeps its own target for
+its full lifetime, so sessions to different hosts stay independent.
+
+Targets are gateway-owned. Their real addresses, SSH users, ports, and pinned
+host keys live only in the private `TARGETS_FILE`; the browser receives only a
+short target ID, display label, and declared UI capabilities. Use capabilities
+to hide tmux or agent shortcuts on hosts where they are not installed.
+
 ## Requirements
 
 This is self-hosted infrastructure, not a zero-configuration static website.
@@ -53,7 +64,7 @@ A production deployment needs:
 - A dedicated remote account configured for public-key authentication. The
   browser-generated public key must be authorized by the SSH account, while
   its fingerprint must also be enrolled in the gateway allowlist.
-- A verified SSH `known_hosts` file and a private gateway environment file.
+- A verified SSH `known_hosts` file for each target and a private gateway environment file.
 - Operational ownership of updates, logs, access control, backups, and the
   reverse tunnel or VPN used to reach the target.
 
@@ -90,20 +101,25 @@ Runtime variables used by the gateway:
 | --- | --- |
 | `PORT` | Local HTTP/WebSocket listener, usually `3000` |
 | `PUBLIC_ORIGIN` | Exact HTTPS origin accepted for WebSocket upgrades |
-| `SSH_HOST` / `SSH_PORT` | SSH endpoint reachable from the gateway |
-| `SSH_USER` | Remote SSH login user |
-| `SSH_KNOWN_HOSTS` | Verified SSH host-key file; required in production |
+| `TARGETS_FILE` | Private JSON target registry; required in production |
 | `ALLOWLIST_FILE` | Authorized browser-key fingerprints |
 | `MAX_CONNECTIONS` | Maximum simultaneous WebSSH sessions; this is the server-side tab limit |
-| `TMUX_BIN` | Path to the tmux binary on the remote SSH host, when it is not in the non-interactive SSH PATH |
 | `AUTH_HELLO_TIMEOUT_MS` | Time allowed for a new WebSocket to begin authentication; default `15000` |
 | `AUTH_SIGNATURE_TIMEOUT_MS` | Time allowed for an enrolled browser to provide the SSH signature; default `30000` |
 | `WS_HEARTBEAT_INTERVAL_MS` | WebSocket ping interval; default `30000` |
 | `WS_HEARTBEAT_TIMEOUT_MS` | Time without a pong before a dead connection is terminated; default `180000` |
 
-In production, startup fails if `PUBLIC_ORIGIN`, `SSH_HOST`, `SSH_PORT`,
-`SSH_USER`, `SSH_KNOWN_HOSTS`, or `ALLOWLIST_FILE` is missing or invalid. The
-known-hosts and allowlist files must be readable and non-empty, and
+`TARGETS_FILE` is deliberately not part of the repository. It is a private,
+root-readable JSON file that maps a neutral target ID to its display label,
+SSH host, port, user, pinned known-hosts file, and optional capabilities. Only
+the ID, label, and capabilities are returned to the browser; connection
+details never leave the gateway. Start from
+[`deploy/targets.json.example`](deploy/targets.json.example), but keep the
+actual file outside the repository and do not commit it.
+
+In production, startup fails if `PUBLIC_ORIGIN`, `TARGETS_FILE`, or
+`ALLOWLIST_FILE` is missing or invalid. Every target's known-hosts file and
+the allowlist must be readable and non-empty, and
 `WEBSSH_ALLOW_UNENROLLED=1` is rejected. This fail-closed validation prevents a
 configuration typo from silently weakening origin or SSH host-key checks.
 
@@ -197,26 +213,26 @@ want it to use, then run `npm run deploy`:
 export WEBSSH_DEPLOY_HOST=your-gateway.example
 export WEBSSH_DEPLOY_USER=root
 export WEBSSH_PUBLIC_ORIGIN=https://ssh.example.com
-export WEBSSH_SSH_HOST=127.0.0.1
-export WEBSSH_SSH_PORT=2222
-export WEBSSH_SSH_USER=remote-user
-export WEBSSH_TMUX_BIN=tmux
+export WEBSSH_TARGETS_FILE=/etc/webssh/targets.json
 
 npm run deploy
 ```
 
 Optional variables include `WEBSSH_REMOTE_DIR`, `WEBSSH_REMOTE_ENV`,
-`WEBSSH_SYSTEMD_SERVICE`, `WEBSSH_SSH_KNOWN_HOSTS`,
-`WEBSSH_ALLOWLIST_FILE`, `WEBSSH_MAX_CONNECTIONS`, `WEBSSH_TMUX_BIN`,
+`WEBSSH_SYSTEMD_SERVICE`, `WEBSSH_TARGETS_FILE`,
+`WEBSSH_ALLOWLIST_FILE`, `WEBSSH_MAX_CONNECTIONS`,
 `WEBSSH_AUTH_HELLO_TIMEOUT_MS`, `WEBSSH_AUTH_SIGNATURE_TIMEOUT_MS`,
 `WEBSSH_WS_HEARTBEAT_INTERVAL_MS`, and `WEBSSH_WS_HEARTBEAT_TIMEOUT_MS`.
 The script uses the current SSH key configuration for `scp`/`ssh`; it does not
 accept or transmit a root password.
 
+`scripts/deploy.sh` never creates or overwrites `TARGETS_FILE`. Install and
+verify that private file separately before the first production deployment.
+
 Production should have:
 
 1. `PUBLIC_ORIGIN` set to the exact HTTPS origin.
-2. `SSH_KNOWN_HOSTS` pointing to a verified host-key file.
+2. `TARGETS_FILE` containing only verified, pinned SSH targets.
 3. `ALLOWLIST_FILE` containing only authorized browser-key fingerprints.
 4. `WEBSSH_ALLOW_UNENROLLED` unset.
 5. SSH password and keyboard-interactive authentication disabled on the remote

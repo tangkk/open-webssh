@@ -11,23 +11,31 @@ import { WebSocketServer, WebSocket } from "ws";
 import { BrowserAgent } from "./agent.js";
 
 type ClientMessage =
-  | { type: "hello"; keyBlob: string; fingerprint: string; cols: number; rows: number }
+  | { type: "hello"; targetId: string; keyBlob: string; fingerprint: string; cols: number; rows: number }
   | { type: "sign_response"; id: string; signature?: string; error?: string }
   | { type: "input"; data: string }
   | { type: "resize"; cols: number; rows: number }
   | { type: "tmux_sessions" };
 
 type TmuxSession = { name: string; windows: number; attached: boolean };
+type TargetCapabilities = { tmux?: boolean; agents?: boolean };
+type Target = {
+  id: string;
+  label: string;
+  host: string;
+  port: number;
+  user: string;
+  knownHostsFile: string;
+  tmuxBin?: string;
+  capabilities?: TargetCapabilities;
+};
+type PublicTarget = Pick<Target, "id" | "label"> & { capabilities: TargetCapabilities };
 const tmuxSessionMarker = "__WEBSSH_TMUX__";
 const tmuxFieldMarker = "__WEBSSH_FIELD__";
 
 const port = Number(process.env.PORT || 3000);
-const sshHost = process.env.SSH_HOST || "127.0.0.1";
-const sshPort = process.env.SSH_PORT || "2222";
-const sshUser = process.env.SSH_USER || "remote-user";
-const tmuxBinary = process.env.TMUX_BIN || "tmux";
 const allowlistFile = process.env.ALLOWLIST_FILE || "/etc/webssh/allowed_fingerprints";
-const knownHostsFile = process.env.SSH_KNOWN_HOSTS || "/etc/webssh/known_hosts";
+const targetsFile = process.env.TARGETS_FILE;
 const allowUnenrolled = process.env.WEBSSH_ALLOW_UNENROLLED === "1";
 const publicOrigin = process.env.PUBLIC_ORIGIN;
 const maxConnections = integerSetting("MAX_CONNECTIONS", 12, 1, 1_000);
@@ -37,6 +45,7 @@ const heartbeatIntervalMs = integerSetting("WS_HEARTBEAT_INTERVAL_MS", 30_000, 5
 const heartbeatTimeoutMs = integerSetting("WS_HEARTBEAT_TIMEOUT_MS", 180_000, heartbeatIntervalMs * 2, 900_000);
 const distDirectory = resolve(process.cwd(), "dist");
 let activeConnections = 0;
+let targets: Target[] = [];
 
 function integerSetting(name: string, fallback: number, minimum: number, maximum: number): number {
   const raw = process.env[name];
@@ -59,11 +68,69 @@ async function requireReadableEntries(path: string, label: string): Promise<void
   if (entries.length === 0) throw new Error(`${label} has no active entries at ${path}`);
 }
 
+function fallbackTarget(): Target {
+  return {
+    id: "default",
+    label: "Default host",
+    host: process.env.SSH_HOST || "127.0.0.1",
+    port: Number(process.env.SSH_PORT || "2222"),
+    user: process.env.SSH_USER || "remote-user",
+    knownHostsFile: process.env.SSH_KNOWN_HOSTS || "/etc/webssh/known_hosts",
+    tmuxBin: process.env.TMUX_BIN || "tmux",
+    capabilities: { tmux: true, agents: true },
+  };
+}
+
+function validateTarget(value: unknown, index: number): Target {
+  if (!value || typeof value !== "object") throw new Error(`Target ${index + 1} must be an object`);
+  const target = value as Partial<Target>;
+  if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(target.id || "")) throw new Error(`Target ${index + 1} has an invalid id`);
+  if (!target.label?.trim()) throw new Error(`Target ${target.id} has no label`);
+  if (!target.host?.trim()) throw new Error(`Target ${target.id} has no host`);
+  if (!Number.isInteger(target.port) || target.port! < 1 || target.port! > 65_535) throw new Error(`Target ${target.id} has an invalid port`);
+  if (!target.user?.trim()) throw new Error(`Target ${target.id} has no SSH user`);
+  if (!target.knownHostsFile?.trim()) throw new Error(`Target ${target.id} has no known-hosts file`);
+  if (target.capabilities !== undefined && (typeof target.capabilities !== "object" || Array.isArray(target.capabilities))) {
+    throw new Error(`Target ${target.id} has invalid capabilities`);
+  }
+  return {
+    id: target.id!,
+    label: target.label.trim(),
+    host: target.host.trim(),
+    port: target.port!,
+    user: target.user.trim(),
+    knownHostsFile: target.knownHostsFile.trim(),
+    tmuxBin: target.tmuxBin?.trim() || "tmux",
+    capabilities: { tmux: Boolean(target.capabilities?.tmux), agents: Boolean(target.capabilities?.agents) },
+  };
+}
+
+async function loadTargets(): Promise<void> {
+  if (!targetsFile) {
+    targets = [validateTarget(fallbackTarget(), 0)];
+    return;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(targetsFile, "utf8"));
+  } catch (error) {
+    throw new Error(`TARGETS_FILE is not readable JSON at ${targetsFile}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const entries = Array.isArray(parsed) ? parsed : (parsed as { targets?: unknown })?.targets;
+  if (!Array.isArray(entries) || entries.length === 0) throw new Error("TARGETS_FILE must contain a non-empty targets array");
+  targets = entries.map(validateTarget);
+  if (new Set(targets.map((target) => target.id)).size !== targets.length) throw new Error("TARGETS_FILE has duplicate target ids");
+}
+
+function publicTargets(): PublicTarget[] {
+  return targets.map(({ id, label, capabilities }) => ({ id, label, capabilities: capabilities || {} }));
+}
+
 async function validateProductionConfiguration(): Promise<void> {
   if (process.env.NODE_ENV !== "production") return;
   if (allowUnenrolled) throw new Error("WEBSSH_ALLOW_UNENROLLED must not be enabled in production");
 
-  const requiredVariables = ["PUBLIC_ORIGIN", "SSH_HOST", "SSH_PORT", "SSH_USER", "SSH_KNOWN_HOSTS", "ALLOWLIST_FILE"];
+  const requiredVariables = ["PUBLIC_ORIGIN", "TARGETS_FILE", "ALLOWLIST_FILE"];
   for (const name of requiredVariables) {
     if (!process.env[name]?.trim()) throw new Error(`${name} is required in production`);
   }
@@ -77,15 +144,9 @@ async function validateProductionConfiguration(): Promise<void> {
   if (origin.protocol !== "https:" || origin.origin !== publicOrigin) {
     throw new Error("PUBLIC_ORIGIN must be an exact HTTPS origin without a path, query, or trailing slash");
   }
-  const parsedSshPort = Number(sshPort);
-  if (!Number.isInteger(parsedSshPort) || parsedSshPort < 1 || parsedSshPort > 65_535) {
-    throw new Error("SSH_PORT must be an integer between 1 and 65535");
-  }
-  if (sshUser === "remote-user") throw new Error("SSH_USER must not use the example value in production");
-
   await Promise.all([
-    requireReadableEntries(knownHostsFile, "SSH_KNOWN_HOSTS"),
     requireReadableEntries(allowlistFile, "ALLOWLIST_FILE"),
+    ...targets.map((target) => requireReadableEntries(target.knownHostsFile, `known-hosts for target ${target.id}`)),
   ]);
 }
 
@@ -93,6 +154,9 @@ const app = express();
 app.disable("x-powered-by");
 app.get("/api/health", (_request, response) => {
   response.json({ ok: true, activeConnections });
+});
+app.get("/api/targets", (_request, response) => {
+  response.json({ targets: publicTargets() });
 });
 app.use(express.static(distDirectory, { etag: true, maxAge: "1y", immutable: true, index: false }));
 app.get("/{*path}", (_request, response) => {
@@ -164,18 +228,18 @@ function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\\"'\\\"'")}'`;
 }
 
-function listTmuxSessions(agentSocket: string, strictHostKeyArgs: string[]): Promise<TmuxSession[]> {
+function listTmuxSessions(agentSocket: string, target: Target, strictHostKeyArgs: string[]): Promise<TmuxSession[]> {
   const args = [
     "-T",
-    "-p", sshPort,
+    "-p", String(target.port),
     "-o", "PreferredAuthentications=publickey",
     "-o", "PasswordAuthentication=no",
     "-o", "KbdInteractiveAuthentication=no",
     "-o", "ForwardAgent=no",
     "-o", "ConnectTimeout=8",
     ...strictHostKeyArgs,
-    `${sshUser}@${sshHost}`,
-    `${shellQuote(tmuxBinary)} list-sessions -F '${tmuxSessionMarker}#{session_name}${tmuxFieldMarker}#{session_windows}${tmuxFieldMarker}#{session_attached}'`,
+    `${target.user}@${target.host}`,
+    `${shellQuote(target.tmuxBin || "tmux")} list-sessions -F '${tmuxSessionMarker}#{session_name}${tmuxFieldMarker}#{session_windows}${tmuxFieldMarker}#{session_attached}'`,
   ];
   return new Promise((resolve, reject) => {
     execFile("ssh", args, {
@@ -206,6 +270,7 @@ websocketServer.on("connection", (websocket) => {
   let temporaryDirectory: string | undefined;
   let agentSocket: string | undefined;
   let strictHostKeyArgs: string[] = [];
+  let target: Target | undefined;
   let initialized = false;
   let authenticationTimer: NodeJS.Timeout | undefined;
 
@@ -262,18 +327,22 @@ websocketServer.on("connection", (websocket) => {
         websocket.close(1008);
         return;
       }
+      target = targets.find((candidate) => candidate.id === message.targetId);
+      if (!target) {
+        send(websocket, { type: "error", message: "Unknown SSH target" });
+        websocket.close(1008);
+        return;
+      }
 
       try {
         temporaryDirectory = await mkdtemp(join(tmpdir(), "webssh-"));
         agentSocket = join(temporaryDirectory, "agent.sock");
         agent = new BrowserAgent(websocket, keyBlob, clearAuthenticationTimer);
         await agent.listen(agentSocket);
-        strictHostKeyArgs = process.env.SSH_KNOWN_HOSTS
-          ? ["-o", "StrictHostKeyChecking=yes", "-o", `UserKnownHostsFile=${knownHostsFile}`]
-          : ["-o", "StrictHostKeyChecking=accept-new"];
+        strictHostKeyArgs = ["-o", "StrictHostKeyChecking=yes", "-o", `UserKnownHostsFile=${target.knownHostsFile}`];
         const args = [
           "-tt",
-          "-p", sshPort,
+          "-p", String(target.port),
           "-o", "PreferredAuthentications=publickey",
           "-o", "PasswordAuthentication=no",
           "-o", "KbdInteractiveAuthentication=no",
@@ -281,7 +350,7 @@ websocketServer.on("connection", (websocket) => {
           "-o", "ServerAliveInterval=30",
           "-o", "ServerAliveCountMax=3",
           ...strictHostKeyArgs,
-          `${sshUser}@${sshHost}`,
+          `${target.user}@${target.host}`,
         ];
         send(websocket, { type: "status", status: "connecting", message: "Verifying device signature…" });
         terminal = pty.spawn("ssh", args, {
@@ -306,9 +375,9 @@ websocketServer.on("connection", (websocket) => {
 
     if (message.type === "sign_response") {
       agent?.receiveSignature(message.id, message.signature, message.error);
-    } else if (message.type === "tmux_sessions" && agentSocket && terminal) {
+    } else if (message.type === "tmux_sessions" && agentSocket && terminal && target?.capabilities?.tmux) {
       try {
-        const sessions = await listTmuxSessions(agentSocket, strictHostKeyArgs);
+        const sessions = await listTmuxSessions(agentSocket, target, strictHostKeyArgs);
         send(websocket, { type: "tmux_sessions", sessions });
       } catch {
         send(websocket, { type: "tmux_sessions", sessions: [], error: "Unable to list tmux sessions" });
@@ -333,7 +402,8 @@ websocketServer.on("connection", (websocket) => {
   });
 });
 
-validateProductionConfiguration()
+loadTargets()
+  .then(validateProductionConfiguration)
   .then(() => {
     server.listen(port, "127.0.0.1", () => {
       console.log(`WebSSH listening on http://127.0.0.1:${port}`);

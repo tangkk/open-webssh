@@ -18,6 +18,8 @@ type ServerMessage =
   | { type: "error"; message: string };
 
 type TmuxSession = { name: string; windows: number; attached: boolean };
+type TargetCapabilities = { tmux?: boolean; agents?: boolean };
+type TargetDescriptor = { id: string; label: string; capabilities: TargetCapabilities };
 
 type ThemeName = "signal" | "tokyo-night" | "catppuccin-mocha" | "gruvbox-dark" | "github-light" | "catppuccin-latte" | "gruvbox-light";
 type ThemeDefinition = {
@@ -100,6 +102,7 @@ app.innerHTML = `
         <button class="tab-theme" id="theme-toggle" type="button" aria-label="Choose theme" aria-expanded="false" title="Theme">◐</button>
       </div>
       <div class="theme-menu" id="theme-menu" role="menu" aria-label="Terminal theme" hidden></div>
+      <div class="target-menu" id="target-menu" role="menu" aria-label="Choose SSH target" hidden></div>
       <div id="terminal"></div>
       <section class="onboarding" id="onboarding">
         <p class="eyebrow">PRIVATE SSH ACCESS</p>
@@ -109,6 +112,8 @@ app.innerHTML = `
           <span>This device's public-key fingerprint</span>
           <code id="fingerprint">Generating…</code>
         </div>
+        <label class="target-picker-label" for="target-select">SSH target</label>
+        <select class="target-select" id="target-select" disabled></select>
         <button class="primary" id="connect" disabled>Connect</button>
         <button class="secondary" id="copy-key" disabled>Copy public key to authorize this device</button>
         <p class="hint" id="hint">On first use, add this public key to the remote SSH account.</p>
@@ -535,6 +540,7 @@ type AgentKind = "shell" | "codex" | "hermes" | "openclaw";
 type TerminalTab = {
   id: number;
   name: string;
+  target: TargetDescriptor;
   host: HTMLElement;
   terminal: Terminal;
   fit: FitAddon;
@@ -547,12 +553,79 @@ type TerminalTab = {
   outputFrame?: number;
 };
 const tabBar = document.querySelector<HTMLElement>("#tab-bar")!;
+const targetMenu = document.querySelector<HTMLElement>("#target-menu")!;
+const targetSelect = document.querySelector<HTMLSelectElement>("#target-select")!;
 const themeToggle = document.querySelector<HTMLButtonElement>("#theme-toggle")!;
 const themeMenu = document.querySelector<HTMLElement>("#theme-menu")!;
 const panels = document.querySelector<HTMLElement>("#terminal-wrap")!;
 const tabs: TerminalTab[] = [];
 let activeTab: TerminalTab | undefined;
 let nextTabId = 1;
+let availableTargets: TargetDescriptor[] = [];
+let selectedTargetId = "";
+
+function targetForId(id: string): TargetDescriptor | undefined {
+  return availableTargets.find((target) => target.id === id);
+}
+
+function tabName(target: TargetDescriptor, ordinal: number) {
+  return `${target.label} · Terminal ${ordinal}`;
+}
+
+function supports(tab: TerminalTab | undefined, capability: keyof TargetCapabilities): boolean {
+  return Boolean(tab?.target.capabilities[capability]);
+}
+
+function updateTargetControls() {
+  const tmuxButton = document.querySelector<HTMLButtonElement>("#tmux-attach");
+  const agentsAvailable = supports(activeTab, "agents");
+  const tmuxAvailable = supports(activeTab, "tmux");
+  document.querySelectorAll<HTMLButtonElement>(".agent-key").forEach((button) => {
+    button.disabled = button === tmuxButton ? !tmuxAvailable : !agentsAvailable;
+  });
+  if (tmuxButton) tmuxButton.title = tmuxAvailable ? "tmux sessions" : "tmux is unavailable for this target";
+}
+
+function renderTargetPicker() {
+  targetSelect.replaceChildren(...availableTargets.map((target) => {
+    const option = document.createElement("option");
+    option.value = target.id;
+    option.textContent = target.label;
+    return option;
+  }));
+  targetSelect.value = selectedTargetId;
+  targetSelect.disabled = availableTargets.length === 0;
+}
+
+function renderTargetMenu() {
+  const choices = availableTargets.map((target) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.targetId = target.id;
+    button.textContent = target.label;
+    return button;
+  });
+  targetMenu.replaceChildren(...choices);
+}
+
+function setTargetMenu(open: boolean) {
+  targetMenu.hidden = !open;
+}
+
+async function loadAvailableTargets() {
+  const response = await fetch("/api/targets", { cache: "no-store" });
+  if (!response.ok) throw new Error("Unable to load SSH targets");
+  const payload = await response.json() as { targets?: TargetDescriptor[] };
+  if (!Array.isArray(payload.targets) || payload.targets.length === 0) throw new Error("No SSH targets are available");
+  availableTargets = payload.targets.filter((target) => typeof target?.id === "string" && typeof target?.label === "string");
+  if (availableTargets.length === 0) throw new Error("No valid SSH targets are available");
+  selectedTargetId = availableTargets[0].id;
+  initialTab.target = availableTargets[0];
+  initialTab.name = tabName(initialTab.target, initialTab.id);
+  renderTargetPicker();
+  renderTargetMenu();
+  renderTabs();
+}
 
 function renderTabs() {
   tabBar.hidden = onboarding.hidden === false;
@@ -645,6 +718,7 @@ function activateTab(tab: TerminalTab, connectIfNeeded = true) {
   setTmuxSessionMenu(false);
   setThemeMenu(false);
   renderAgentCommandMenu();
+  updateTargetControls();
   tabs.forEach((item) => { item.host.hidden = item !== tab; });
   renderTabs();
   onboarding.hidden = true;
@@ -659,14 +733,15 @@ function activateTab(tab: TerminalTab, connectIfNeeded = true) {
   if (!isMobileDevice) terminal.focus();
 }
 
-function createAdditionalTab() {
+function createAdditionalTab(target: TargetDescriptor) {
   const host = document.createElement("div");
   host.className = "terminal-panel";
   host.hidden = true;
   panels.appendChild(host);
   const nextTerminal = new Terminal({ cursorBlink: true, cursorStyle: "bar", fontFamily: '"SFMono-Regular", "SF Mono", Menlo, monospace', fontSize: 12, lineHeight: 1.18, scrollback: 4000, disableStdin: false, theme: themes[activeTheme].xterm });
   const nextFit = new FitAddon(); nextTerminal.loadAddon(nextFit); nextTerminal.open(host);
-  const tab: TerminalTab = { id: nextTabId++, name: `Terminal ${nextTabId - 1}`, host, terminal: nextTerminal, fit: nextFit, tmuxAttached: false, agent: "shell", connectionState: "idle", outputQueue: [] };
+  const ordinal = nextTabId++;
+  const tab: TerminalTab = { id: ordinal, name: tabName(target, ordinal), target, host, terminal: nextTerminal, fit: nextFit, tmuxAttached: false, agent: "shell", connectionState: "idle", outputQueue: [] };
   tabs.push(tab);
   bindTerminalBehavior(tab);
   activateTab(tab, false);
@@ -680,7 +755,7 @@ function connectTab(tab: TerminalTab) {
   tab.connectionState = "connecting";
   tab.statusMessage = "Connecting…";
   if (activeTab === tab) setStatus(tab.statusMessage, "working");
-  tabSocket.addEventListener("open", () => { tab.socket = tabSocket; if (activeTab === tab) socket = tabSocket; sendToTab(tab, { type: "hello", keyBlob: bytesToBase64(identity.keyBlob), publicKey: identity.authorizedKey, fingerprint: identity.fingerprint, cols: tab.terminal.cols, rows: tab.terminal.rows }); });
+  tabSocket.addEventListener("open", () => { tab.socket = tabSocket; if (activeTab === tab) socket = tabSocket; sendToTab(tab, { type: "hello", targetId: tab.target.id, keyBlob: bytesToBase64(identity.keyBlob), publicKey: identity.authorizedKey, fingerprint: identity.fingerprint, cols: tab.terminal.cols, rows: tab.terminal.rows }); });
   tabSocket.addEventListener("message", async (event) => {
     const message = JSON.parse(String(event.data)) as ServerMessage;
     if (message.type === "sign_request") {
@@ -717,7 +792,7 @@ function connectTab(tab: TerminalTab) {
   });
 }
 
-const initialTab: TerminalTab = { id: nextTabId++, name: "Terminal 1", host: terminalHost, terminal, fit, tmuxAttached: false, agent: "shell", connectionState: "idle", outputQueue: [] };
+const initialTab: TerminalTab = { id: nextTabId++, name: "Terminal 1", target: { id: "", label: "", capabilities: {} }, host: terminalHost, terminal, fit, tmuxAttached: false, agent: "shell", connectionState: "idle", outputQueue: [] };
 tabs.push(initialTab);
 activeTab = initialTab;
 bindTerminalBehavior(initialTab);
@@ -948,6 +1023,13 @@ function websocketUrl() {
 function connect() {
   const tab = activeTab;
   if (!tab || (tab.socket && tab.socket.readyState <= WebSocket.OPEN)) return;
+  const selectedTarget = targetForId(selectedTargetId);
+  if (!selectedTarget) {
+    setStatus("Choose an SSH target", "error");
+    return;
+  }
+  tab.target = selectedTarget;
+  tab.name = tabName(selectedTarget, tab.id);
   shouldReconnect = true;
   connectButton.disabled = true;
   setStatus("Connecting…", "working");
@@ -960,6 +1042,7 @@ function connect() {
   tabSocket.addEventListener("open", () => {
     sendToTab(tab, {
       type: "hello",
+      targetId: tab.target.id,
       keyBlob: bytesToBase64(identity.keyBlob),
       publicKey: identity.authorizedKey,
       fingerprint: identity.fingerprint,
@@ -1387,7 +1470,25 @@ document.querySelector("#exit-ssh")?.addEventListener("click", () => {
   const nextTab = tabs[Math.min(closingIndex, tabs.length - 1)];
   activateTab(nextTab);
 });
-document.querySelector("#tab-add")?.addEventListener("click", createAdditionalTab);
+document.querySelector("#tab-add")?.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  setThemeMenu(false);
+  setTargetMenu(targetMenu.hidden);
+});
+targetMenu.addEventListener("pointerdown", (event) => {
+  const choice = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-target-id]");
+  if (!choice?.dataset.targetId) return;
+  const target = targetForId(choice.dataset.targetId);
+  if (!target) return;
+  event.preventDefault();
+  event.stopPropagation();
+  setTargetMenu(false);
+  createAdditionalTab(target);
+});
+targetSelect.addEventListener("change", () => {
+  selectedTargetId = targetSelect.value;
+});
 themeToggle.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   event.stopPropagation();
@@ -1404,6 +1505,10 @@ themeMenu.addEventListener("pointerdown", (event) => {
 document.addEventListener("pointerdown", (event) => {
   if (themeMenu.hidden || themeMenu.contains(event.target as Node) || themeToggle.contains(event.target as Node)) return;
   setThemeMenu(false);
+});
+document.addEventListener("pointerdown", (event) => {
+  if (targetMenu.hidden || targetMenu.contains(event.target as Node) || (event.target as HTMLElement).closest("#tab-add")) return;
+  setTargetMenu(false);
 });
 connectButton.addEventListener("click", connect);
 copyButton.addEventListener("click", () => void copyPublicKey());
@@ -1436,8 +1541,8 @@ document.documentElement.dataset.theme = activeTheme;
 renderThemeMenu();
 updateVisualViewport();
 
-getOrCreateIdentity()
-  .then((value) => {
+Promise.all([getOrCreateIdentity(), loadAvailableTargets()])
+  .then(([value]) => {
     identity = value;
     document.querySelector("#fingerprint")!.textContent = value.fingerprint;
     document.querySelector("#dialog-fingerprint")!.textContent = value.fingerprint;
