@@ -989,7 +989,7 @@ function attachTmuxSession(sessionName: string) {
   tmuxAttached = true;
   if (activeTab) activeTab.tmuxAttached = true;
   setActiveAgent("codex");
-  sendTerminalInput(`tmux attach-session -t -- ${shellQuote(sessionName)}\r`);
+  sendTerminalInput(`tmux attach-session -t ${shellQuote(sessionName)}\r`);
   setTmuxSessionMenu(false);
 }
 function renderTmuxSessionMenu(sessions?: TmuxSession[], error?: string) {
