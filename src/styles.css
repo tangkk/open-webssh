@@ -476,3 +476,43 @@ html.connected, html.connected body, html.connected #app,
 .theme-menu button:active { background: var(--terminal-accent-pressed); }
 .theme-preview { display: flex; overflow: hidden; width: 33px; height: 15px; border: 1px solid var(--terminal-border); border-radius: 999px; }
 .theme-preview i { flex: 1; }
+
+.ime-debug-panel {
+  position: fixed;
+  inset: max(8px, env(safe-area-inset-top)) 8px auto;
+  z-index: 100;
+  max-height: 34vh;
+  overflow: hidden;
+  border: 1px solid var(--terminal-accent);
+  border-radius: 10px;
+  background: var(--menu-surface);
+  color: var(--terminal-fg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
+  font: 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.ime-debug-panel[hidden] { display: none; }
+.ime-debug-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--terminal-border);
+}
+.ime-debug-panel header span { display: flex; gap: 6px; }
+.ime-debug-panel button {
+  padding: 3px 8px;
+  border: 1px solid var(--terminal-accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--terminal-accent);
+  font: inherit;
+}
+.ime-debug-panel pre {
+  max-height: calc(34vh - 34px);
+  margin: 0;
+  padding: 7px 8px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}

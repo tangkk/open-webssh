@@ -151,6 +151,10 @@ app.innerHTML = `
         <button type="button" class="primary compact" id="dialog-copy">Copy public key</button>
       </form>
     </dialog>
+    <section class="ime-debug-panel" id="ime-debug-panel" hidden>
+      <header><strong>IME event log</strong><span><button id="ime-debug-clear" type="button">Clear</button><button id="ime-debug-copy" type="button">Copy</button></span></header>
+      <pre id="ime-debug-list"></pre>
+    </section>
   </section>
 `;
 
@@ -177,6 +181,7 @@ let imeJustCommitted = false;
 let lastCommittedText = "";
 let lastTerminalKeydownAt = 0;
 const configuredTextareas = new WeakSet<HTMLTextAreaElement>();
+
 function configureTerminalInput(textarea: HTMLTextAreaElement | null, tabTerminal: Terminal) {
   if (!textarea || configuredTextareas.has(textarea)) return;
   configuredTextareas.add(textarea);
@@ -1045,6 +1050,7 @@ function renderAgentCommandMenu() {
 function setActiveAgent(agent: AgentKind) {
   if (!activeTab) return;
   activeTab.agent = agent;
+  imeLog("agent", agent);
   renderAgentCommandMenu();
 }
 function bindAgentLaunch(selector: string, agent: Exclude<AgentKind, "shell">, command: string) {
@@ -1319,6 +1325,17 @@ function imeLog(label: string, detail?: string) {
   const list = document.getElementById("ime-debug-list");
   if (list) list.textContent = imeDebugLines.join("\n");
 }
+const imeDebugPanel = document.querySelector<HTMLElement>("#ime-debug-panel")!;
+if (new URLSearchParams(location.search).get("ime-debug") === "1") {
+  imeDebugPanel.hidden = false;
+}
+document.querySelector("#ime-debug-clear")?.addEventListener("click", () => {
+  imeDebugLines.length = 0;
+  document.querySelector("#ime-debug-list")!.textContent = "";
+});
+document.querySelector("#ime-debug-copy")?.addEventListener("click", async () => {
+  await navigator.clipboard.writeText(imeDebugLines.join("\n"));
+});
 document.documentElement.dataset.theme = activeTheme;
 renderThemeMenu();
 updateVisualViewport();
