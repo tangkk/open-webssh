@@ -54,9 +54,9 @@ app.innerHTML = `
         <button class="control-key agent-key" id="agent-commands" type="button" aria-label="打开当前 agent 常用命令" aria-expanded="false" title="Agent commands">⋯</button>
         <button class="control-key copy-key" id="copy-selection" type="button" aria-label="复制选中文字" disabled>⧉</button>
         <button class="control-key" id="paste" type="button" aria-label="粘贴剪贴板内容">⎘</button>
+        <button class="control-key" id="clear-screen" type="button" aria-label="清屏">⌧</button>
         <button class="control-key" id="page-up" type="button" aria-label="向上翻屏">⇞</button>
         <button class="control-key" id="page-down" type="button" aria-label="向下翻屏">⇟</button>
-        <button class="control-key" id="clear-screen" type="button" aria-label="清屏">⌧</button>
       </div>
       <div class="command-row command-row-keys">
         <button class="exit-key" id="exit-ssh" type="button" aria-label="Logout">⏻</button>

@@ -121,8 +121,8 @@ are intentionally sent only after a deliberate button press.
 | `⋯` | Open the active agent's slash-command menu |
 | `⧉` | Copy the selected terminal text |
 | `⎘` | Paste clipboard text into the terminal |
-| `⇞` / `⇟` | Page up / page down; tmux uses tmux mouse-wheel events |
 | `⌧` | Send `clear` |
+| `⇞` / `⇟` | Page up / page down; tmux uses tmux mouse-wheel events |
 | `⏻` | Logout and destroy the active terminal session |
 | `⎋` | Send Escape |
 | `⇥` | Send Tab |
