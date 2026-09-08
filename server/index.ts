@@ -18,6 +18,8 @@ type ClientMessage =
   | { type: "tmux_sessions" };
 
 type TmuxSession = { name: string; windows: number; attached: boolean };
+const tmuxSessionMarker = "__WEBSSH_TMUX__";
+const tmuxFieldMarker = "__WEBSSH_FIELD__";
 
 const port = Number(process.env.PORT || 3000);
 const sshHost = process.env.SSH_HOST || "127.0.0.1";
@@ -104,7 +106,7 @@ function listTmuxSessions(agentSocket: string, strictHostKeyArgs: string[]): Pro
     "-o", "ConnectTimeout=8",
     ...strictHostKeyArgs,
     `${sshUser}@${sshHost}`,
-    `${shellQuote(tmuxBinary)} list-sessions -F '#{session_name}\\t#{session_windows}\\t#{session_attached}'`,
+    `${shellQuote(tmuxBinary)} list-sessions -F '${tmuxSessionMarker}#{session_name}${tmuxFieldMarker}#{session_windows}${tmuxFieldMarker}#{session_attached}'`,
   ];
   return new Promise((resolve, reject) => {
     execFile("ssh", args, {
@@ -117,8 +119,9 @@ function listTmuxSessions(agentSocket: string, strictHostKeyArgs: string[]): Pro
         return;
       }
       resolve(stdout.split(/\r?\n/).flatMap((line) => {
-        const [name, windows, attached] = line.split("\t");
-        if (!name) return [];
+        if (!line.startsWith(tmuxSessionMarker)) return [];
+        const [name, windows, attached] = line.slice(tmuxSessionMarker.length).split(tmuxFieldMarker);
+        if (!name || windows === undefined || attached === undefined) return [];
         return [{ name, windows: Number.parseInt(windows, 10) || 0, attached: attached === "1" }];
       }));
     });
