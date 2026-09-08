@@ -106,6 +106,22 @@ Build-time variables are visible to browser users. They are labels and
 routing defaults, not secrets. Never put passwords, API keys, Cloudflare
 tokens, private keys, `known_hosts`, or the device allowlist in Vite variables.
 
+## Themes
+
+Use the `◐` button beside the new-terminal button in the tab bar to switch the
+entire connected workspace. The chosen theme is stored locally in the current
+browser profile and applies to every terminal tab, xterm colors and cursor,
+the tab bar, theme menu, and extra keyboard.
+
+Built-in themes:
+
+- Dark: Signal (default), Tokyo Night, Catppuccin Mocha, Gruvbox Dark
+- Light: GitHub Light, Catppuccin Latte, Gruvbox Light
+
+| Tokyo Night | Signal | GitHub Light |
+| --- | --- | --- |
+| <img src="https://files.tangkk-x2o.com/public/open-webssh/themes/tokyo-night.png" alt="Tokyo Night theme on iPhone" width="220"> | <img src="https://files.tangkk-x2o.com/public/open-webssh/themes/signal.png" alt="Signal theme on iPhone" width="220"> | <img src="https://files.tangkk-x2o.com/public/open-webssh/themes/github-light.png" alt="GitHub Light theme on iPhone" width="220"> |
+
 ## Extra keyboard
 
 The extra keyboard is shown when the native mobile keyboard is dismissed. Each
