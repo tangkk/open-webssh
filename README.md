@@ -92,6 +92,7 @@ Runtime variables used by the gateway:
 | `TARGET_LABEL` | Target name shown by the health endpoint |
 | `GATEWAY_LABEL` | Gateway name used by the client UI |
 | `TMUX_SESSION` | Default tmux session used by the T button |
+| `TMUX_BIN` | Path to the tmux binary on the remote SSH host, when it is not in the non-interactive SSH PATH |
 
 Build-time UI variables use the `VITE_` prefix:
 
@@ -177,6 +178,7 @@ export WEBSSH_SSH_HOST=127.0.0.1
 export WEBSSH_SSH_PORT=2222
 export WEBSSH_SSH_USER=remote-user
 export WEBSSH_TMUX_SESSION=main
+export WEBSSH_TMUX_BIN=tmux
 
 npm run deploy
 ```

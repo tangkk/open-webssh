@@ -23,6 +23,7 @@ const port = Number(process.env.PORT || 3000);
 const sshHost = process.env.SSH_HOST || "127.0.0.1";
 const sshPort = process.env.SSH_PORT || "2222";
 const sshUser = process.env.SSH_USER || "remote-user";
+const tmuxBinary = process.env.TMUX_BIN || "tmux";
 const allowlistFile = process.env.ALLOWLIST_FILE || "/etc/webssh/allowed_fingerprints";
 const knownHostsFile = process.env.SSH_KNOWN_HOSTS || "/etc/webssh/known_hosts";
 const allowUnenrolled = process.env.WEBSSH_ALLOW_UNENROLLED === "1";
@@ -88,6 +89,10 @@ function safeSize(value: number, fallback: number, maximum: number): number {
   return Number.isFinite(value) ? Math.max(2, Math.min(Math.floor(value), maximum)) : fallback;
 }
 
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\\"'\\\"'")}'`;
+}
+
 function listTmuxSessions(agentSocket: string, strictHostKeyArgs: string[]): Promise<TmuxSession[]> {
   const args = [
     "-T",
@@ -99,7 +104,7 @@ function listTmuxSessions(agentSocket: string, strictHostKeyArgs: string[]): Pro
     "-o", "ConnectTimeout=8",
     ...strictHostKeyArgs,
     `${sshUser}@${sshHost}`,
-    "tmux list-sessions -F '#{session_name}\\t#{session_windows}\\t#{session_attached}'",
+    `${shellQuote(tmuxBinary)} list-sessions -F '#{session_name}\\t#{session_windows}\\t#{session_attached}'`,
   ];
   return new Promise((resolve, reject) => {
     execFile("ssh", args, {
