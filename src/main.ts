@@ -175,6 +175,7 @@ let allowTerminalFocus = false;
 let imeComposing = false;
 let imeJustCommitted = false;
 let lastCommittedText = "";
+let lastTerminalKeydownAt = 0;
 const configuredTextareas = new WeakSet<HTMLTextAreaElement>();
 function configureTerminalInput(textarea: HTMLTextAreaElement | null, tabTerminal: Terminal) {
   if (!textarea || configuredTextareas.has(textarea)) return;
@@ -203,7 +204,14 @@ function configureTerminalInput(textarea: HTMLTextAreaElement | null, tabTermina
   });
   textarea.addEventListener("beforeinput", (event) => {
     imeLog("beforeinput", `data=${JSON.stringify(event.data)} inputType=${event.inputType} isComposing=${event.isComposing}`);
+    // iOS dictation normally emits insertText/composition events without a
+    // preceding keyboard event. xterm already handles that path. Manually
+    // forwarding it here as well duplicates dictated text, so keep this
+    // fallback limited to text produced directly by the software keyboard.
+    const followsKeyboardEvent = performance.now() - lastTerminalKeydownAt < 120;
+    lastTerminalKeydownAt = 0;
     if (!event.data || event.data === lastCommittedText) return;
+    if (!followsKeyboardEvent) return;
     if (event.data.includes("\u3000")) {
       if (imeComposing || event.isComposing || imeJustCommitted) return;
       event.preventDefault();
@@ -225,6 +233,7 @@ function configureTerminalInput(textarea: HTMLTextAreaElement | null, tabTermina
 document.addEventListener("keydown", (event) => {
   if (event.target === terminalInput) imeLog("keydown", `key=${event.key} keyCode=${event.keyCode} imeComposing=${imeComposing}`);
   if (event.target !== terminalInput) return;
+  lastTerminalKeydownAt = performance.now();
   // During composition, block xterm keydown handling, which would send early.
   // keyCode 229 / key "Process" marks the iOS IME; block xterm's textarea-change
   // handler too, because it can resend the textarea delta after compositionend.
@@ -517,6 +526,7 @@ function activateTab(tab: TerminalTab, connectIfNeeded = true) {
   imeComposing = false;
   imeJustCommitted = false;
   lastCommittedText = "";
+  lastTerminalKeydownAt = 0;
   activeTab = tab;
   terminal = tab.terminal;
   fit = tab.fit;
