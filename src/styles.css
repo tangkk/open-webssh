@@ -375,6 +375,39 @@ dialog textarea {
   --menu-surface: rgba(40, 40, 40, .98);
 }
 
+:root[data-theme="github-light"] {
+  --terminal-surface: #ffffff;
+  --terminal-fg: #24292f;
+  --terminal-muted: rgba(36, 41, 47, .66);
+  --terminal-border: rgba(36, 41, 47, .32);
+  --terminal-accent: #0969da;
+  --terminal-accent-pressed: rgba(9, 105, 218, .12);
+  --tab-surface: rgba(255, 255, 255, .92);
+  --menu-surface: rgba(255, 255, 255, .98);
+}
+
+:root[data-theme="catppuccin-latte"] {
+  --terminal-surface: #eff1f5;
+  --terminal-fg: #4c4f69;
+  --terminal-muted: rgba(76, 79, 105, .68);
+  --terminal-border: rgba(76, 79, 105, .3);
+  --terminal-accent: #8839ef;
+  --terminal-accent-pressed: rgba(136, 57, 239, .12);
+  --tab-surface: rgba(239, 241, 245, .92);
+  --menu-surface: rgba(239, 241, 245, .98);
+}
+
+:root[data-theme="gruvbox-light"] {
+  --terminal-surface: #fbf1c7;
+  --terminal-fg: #3c3836;
+  --terminal-muted: rgba(60, 56, 54, .68);
+  --terminal-border: rgba(60, 56, 54, .32);
+  --terminal-accent: #d65d0e;
+  --terminal-accent-pressed: rgba(214, 93, 14, .13);
+  --tab-surface: rgba(251, 241, 199, .93);
+  --menu-surface: rgba(251, 241, 199, .98);
+}
+
 html.connected, html.connected body, html.connected #app,
 .shell.connected, .terminal-wrap { background: var(--terminal-surface); }
 .terminal-tab, .tab-add, .tab-theme {

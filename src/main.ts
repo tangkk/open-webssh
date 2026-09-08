@@ -17,7 +17,7 @@ type ServerMessage =
   | { type: "sign_request"; id: string; data: string }
   | { type: "error"; message: string };
 
-type ThemeName = "signal" | "tokyo-night" | "catppuccin-mocha" | "gruvbox-dark";
+type ThemeName = "signal" | "tokyo-night" | "catppuccin-mocha" | "gruvbox-dark" | "github-light" | "catppuccin-latte" | "gruvbox-light";
 type ThemeDefinition = {
   name: ThemeName;
   label: string;
@@ -53,6 +53,18 @@ const themes: Record<ThemeName, ThemeDefinition> = {
   "gruvbox-dark": {
     name: "gruvbox-dark", label: "Gruvbox Dark", preview: ["#282828", "#fabd2f", "#b8bb26"],
     xterm: { background: "#282828", foreground: "#ebdbb2", cursor: "#fabd2f", selectionBackground: "#504945", black: "#1d2021", red: "#fb4934", brightRed: "#ff6b55", scrollbarSliderBackground: "rgba(235, 219, 178, 0.3)", scrollbarSliderHoverBackground: "rgba(235, 219, 178, 0.48)", scrollbarSliderActiveBackground: "rgba(250, 189, 47, 0.68)" },
+  },
+  "github-light": {
+    name: "github-light", label: "GitHub Light", preview: ["#ffffff", "#0969da", "#cf222e"],
+    xterm: { background: "#ffffff", foreground: "#24292f", cursor: "#0969da", selectionBackground: "#b6e3ff", black: "#24292f", red: "#cf222e", brightRed: "#a40e26", scrollbarSliderBackground: "rgba(36, 41, 47, 0.24)", scrollbarSliderHoverBackground: "rgba(36, 41, 47, 0.38)", scrollbarSliderActiveBackground: "rgba(9, 105, 218, 0.62)" },
+  },
+  "catppuccin-latte": {
+    name: "catppuccin-latte", label: "Catppuccin Latte", preview: ["#eff1f5", "#8839ef", "#dc8a78"],
+    xterm: { background: "#eff1f5", foreground: "#4c4f69", cursor: "#dc8a78", selectionBackground: "#ccd0da", black: "#5c5f77", red: "#d20f39", brightRed: "#e64553", scrollbarSliderBackground: "rgba(76, 79, 105, 0.24)", scrollbarSliderHoverBackground: "rgba(76, 79, 105, 0.38)", scrollbarSliderActiveBackground: "rgba(136, 57, 239, 0.58)" },
+  },
+  "gruvbox-light": {
+    name: "gruvbox-light", label: "Gruvbox Light", preview: ["#fbf1c7", "#d65d0e", "#98971a"],
+    xterm: { background: "#fbf1c7", foreground: "#3c3836", cursor: "#d65d0e", selectionBackground: "#d5c4a1", black: "#3c3836", red: "#cc241d", brightRed: "#9d0006", scrollbarSliderBackground: "rgba(60, 56, 54, 0.24)", scrollbarSliderHoverBackground: "rgba(60, 56, 54, 0.38)", scrollbarSliderActiveBackground: "rgba(214, 93, 14, 0.58)" },
   },
 };
 
