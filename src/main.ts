@@ -1410,8 +1410,10 @@ copyButton.addEventListener("click", () => void copyPublicKey());
 document.querySelector("#dialog-copy")?.addEventListener("click", () => void copyPublicKey());
 document.querySelector("#device-button")?.addEventListener("click", () => dialog.showModal());
 
+const imeDebugEnabled = new URLSearchParams(location.search).get("ime-debug") === "1";
 const imeDebugLines: string[] = [];
 function imeLog(label: string, detail?: string) {
+  if (!imeDebugEnabled) return;
   const line = `[${Math.round(performance.now())}] ${label}${detail ? " " + detail : ""}`;
   imeDebugLines.push(line);
   console.log("[ime]", line);
@@ -1420,7 +1422,7 @@ function imeLog(label: string, detail?: string) {
   if (list) list.textContent = imeDebugLines.join("\n");
 }
 const imeDebugPanel = document.querySelector<HTMLElement>("#ime-debug-panel")!;
-if (new URLSearchParams(location.search).get("ime-debug") === "1") {
+if (imeDebugEnabled) {
   imeDebugPanel.hidden = false;
 }
 document.querySelector("#ime-debug-clear")?.addEventListener("click", () => {
