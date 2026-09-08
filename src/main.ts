@@ -326,7 +326,7 @@ function selectTerminalRange(from: { column: number; row: number }, to: { column
   else terminal.select(to.column, to.row, start - end + 1);
 }
 
-terminalHost.addEventListener("touchstart", (event) => {
+function handleTerminalTouchStart(event: TouchEvent) {
   if (event.touches.length !== 1) return;
   // Touches on xterm's custom scrollbar are left to xterm's own thumb dragging.
   if (isScrollbarTouch(event)) return;
@@ -346,9 +346,9 @@ terminalHost.addEventListener("touchstart", (event) => {
   touchLastTime = performance.now();
   touchVelocity = 0;
   touchMoved = false;
-}, { passive: true, capture: true });
+}
 
-terminalHost.addEventListener("touchmove", (event) => {
+function handleTerminalTouchMove(event: TouchEvent) {
   if (event.touches.length !== 1) return;
   if (isScrollbarTouch(event)) return;
   if (longPressActive) {
@@ -378,17 +378,17 @@ terminalHost.addEventListener("touchmove", (event) => {
   }
   touchLastY = currentY;
   touchLastTime = now;
-}, { passive: false, capture: true });
+}
 
-terminalHost.addEventListener("pointermove", (event) => {
+function handleTerminalPointerMove(event: PointerEvent) {
   if (event.pointerType !== "touch" || !longPressActive) return;
   event.preventDefault();
   event.stopPropagation();
   const current = terminalCellAt(event.clientX, event.clientY);
   if (selectionStart && current) selectTerminalRange(selectionStart, current);
-}, { passive: false, capture: true });
+}
 
-terminalHost.addEventListener("touchend", (event) => {
+function handleTerminalTouchEnd(event: TouchEvent) {
   if (isScrollbarTouch(event)) return;
   if (longPressTimer !== undefined) clearTimeout(longPressTimer);
   longPressTimer = undefined;
@@ -410,16 +410,29 @@ terminalHost.addEventListener("touchend", (event) => {
     else inertiaFrame = undefined;
   };
   inertiaFrame = requestAnimationFrame(coast);
-}, { passive: true, capture: true });
+}
 
-terminalHost.addEventListener("touchcancel", () => {
+function handleTerminalTouchCancel() {
   if (longPressTimer !== undefined) clearTimeout(longPressTimer);
   longPressTimer = undefined;
   longPressActive = false;
   selectionStart = undefined;
   touchMoved = false;
   touchVelocity = 0;
-}, { passive: true, capture: true });
+}
+
+const touchControlledHosts = new WeakSet<HTMLElement>();
+function bindTerminalTouchControls(host: HTMLElement) {
+  if (touchControlledHosts.has(host)) return;
+  touchControlledHosts.add(host);
+  host.addEventListener("touchstart", handleTerminalTouchStart, { passive: true, capture: true });
+  host.addEventListener("touchmove", handleTerminalTouchMove, { passive: false, capture: true });
+  host.addEventListener("pointermove", handleTerminalPointerMove, { passive: false, capture: true });
+  host.addEventListener("touchend", handleTerminalTouchEnd, { passive: true, capture: true });
+  host.addEventListener("touchcancel", handleTerminalTouchCancel, { passive: true, capture: true });
+}
+
+bindTerminalTouchControls(terminalHost);
 
 const onboarding = document.querySelector<HTMLElement>("#onboarding")!;
 const connectButton = document.querySelector<HTMLButtonElement>("#connect")!;
@@ -508,6 +521,10 @@ function activateTab(tab: TerminalTab) {
   terminalHost = tab.host;
   terminalInput = terminalHost.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea");
   bindTextareaKeyboardGuards(terminalInput);
+  selectionStart = undefined;
+  selectionRange = undefined;
+  longPressActive = false;
+  copySelectionButton.disabled = !terminal.hasSelection();
   socket = tab.socket;
   tmuxAttached = tab.tmuxAttached;
   setAgentCommandMenu(false);
@@ -534,6 +551,8 @@ function createAdditionalTab() {
   nextTerminal.onData((data) => { if (tab.socket?.readyState === WebSocket.OPEN) tab.socket.send(JSON.stringify({ type: "input", data: bytesToBase64(new TextEncoder().encode(data)) })); });
   nextTerminal.onScroll(() => { if (activeTab === tab) updateScrollbarVisibility(); });
   nextTerminal.buffer.onBufferChange(() => { if (activeTab === tab) updateScrollbarVisibility(); });
+  bindTerminalTouchControls(host);
+  bindTerminalSelectionTracking(nextTerminal);
   host.addEventListener("pointerdown", () => { if (!isMobileDevice && activeTab === tab) nextTerminal.focus(); });
   activateTab(tab);
   connectTab(tab);
@@ -1059,9 +1078,13 @@ bindInteractiveCommand("#openclaw-sessions", "openclaw", "openclaw tui\r", "/ses
 renderAgentCommandMenu();
 bindControlKey("#clear-screen", "clear\r");
 const copySelectionButton = document.querySelector<HTMLButtonElement>("#copy-selection")!;
-terminal.onSelectionChange(() => {
-  copySelectionButton.disabled = !selectionRange && !terminal.hasSelection();
-});
+function bindTerminalSelectionTracking(tabTerminal: Terminal) {
+  tabTerminal.onSelectionChange(() => {
+    if (tabTerminal !== terminal) return;
+    copySelectionButton.disabled = !selectionRange && !tabTerminal.hasSelection();
+  });
+}
+bindTerminalSelectionTracking(terminal);
 function selectedTerminalText() {
   if (!selectionRange) return terminal.getSelection();
   const first = selectionRange.from.row * terminal.cols + selectionRange.from.column <=
