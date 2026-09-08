@@ -120,15 +120,15 @@ Built-in themes:
 
 **Tokyo Night**
 
-<img src="https://files.tangkk-x2o.com/public/open-webssh/themes/tokyo-night.png" alt="Tokyo Night theme on iPhone" width="320">
+<img src="https://files.tangkk-x2o.com/public/open-webssh/themes/tokyo-night.png" alt="Tokyo Night theme on iPhone" width="180">
 
 **Signal**
 
-<img src="https://files.tangkk-x2o.com/public/open-webssh/themes/signal.png" alt="Signal theme on iPhone" width="320">
+<img src="https://files.tangkk-x2o.com/public/open-webssh/themes/signal.png" alt="Signal theme on iPhone" width="180">
 
 **GitHub Light**
 
-<img src="https://files.tangkk-x2o.com/public/open-webssh/themes/github-light.png" alt="GitHub Light theme on iPhone" width="320">
+<img src="https://files.tangkk-x2o.com/public/open-webssh/themes/github-light.png" alt="GitHub Light theme on iPhone" width="180">
 
 ## Extra keyboard
 
