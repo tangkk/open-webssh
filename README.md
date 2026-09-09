@@ -176,8 +176,7 @@ are intentionally sent only after a deliberate button press.
 | `H` | Start Hermes and open its session picker |
 | `O` | Start OpenClaw and open its session picker |
 | `T` | List and attach to a tmux session; its command menu defaults to Codex |
-| `G` | When no C/H/O agent is selected, run `chatgpt-web` in the current shell |
-| `⋯` | After selecting C/H/O, open that agent's slash-command menu |
+| `⋯` | Open the active agent's slash-command menu |
 | `⧉` | Copy the selected terminal text |
 | `⎘` | Paste clipboard text into the terminal |
 | `⌧` | Send `clear` |

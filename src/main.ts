@@ -125,7 +125,7 @@ app.innerHTML = `
         <button class="control-key agent-key" id="hermes-sessions" type="button" aria-label="Open Hermes and list sessions" title="Hermes">H</button>
         <button class="control-key agent-key" id="openclaw-sessions" type="button" aria-label="Open OpenClaw and list sessions" title="OpenClaw">O</button>
         <button class="control-key agent-key" id="tmux-attach" type="button" aria-label="Choose a tmux session" aria-expanded="false" title="tmux sessions">T</button>
-        <button class="control-key agent-key" id="agent-commands" type="button" aria-label="Open chatgpt-web" aria-expanded="false" title="Open chatgpt-web">G</button>
+        <button class="control-key agent-key" id="agent-commands" type="button" aria-label="Open common commands for the current agent" aria-expanded="false" title="Agent commands">⋯</button>
         <button class="control-key copy-key" id="copy-selection" type="button" aria-label="Copy selected text" disabled>⧉</button>
         <button class="control-key" id="paste" type="button" aria-label="Paste clipboard contents">⎘</button>
         <button class="control-key" id="clear-screen" type="button" aria-label="Clear screen">⌧</button>
@@ -581,9 +581,7 @@ function updateTargetControls() {
   const agentsAvailable = supports(activeTab, "agents");
   const tmuxAvailable = supports(activeTab, "tmux");
   document.querySelectorAll<HTMLButtonElement>(".agent-key").forEach((button) => {
-    if (button === tmuxButton) button.disabled = !tmuxAvailable;
-    else if (button === agentCommandsButton) button.disabled = activeTab?.agent === "shell" ? !agentsAvailable : false;
-    else button.disabled = !agentsAvailable;
+    button.disabled = button === tmuxButton ? !tmuxAvailable : !agentsAvailable;
   });
   if (tmuxButton) tmuxButton.title = tmuxAvailable ? "tmux sessions" : "tmux is unavailable for this target";
 }
@@ -1199,16 +1197,12 @@ function setAgentCommandMenu(open: boolean) {
 function renderAgentCommandMenu() {
   if (!agentCommandMenu || !agentCommandsButton) return;
   const agent = activeTab?.agent ?? "shell";
+  agentCommandsButton.disabled = agent === "shell";
   if (agent === "shell") {
-    agentCommandsButton.textContent = "G";
-    agentCommandsButton.disabled = !supports(activeTab, "agents");
-    agentCommandsButton.title = "Open chatgpt-web";
-    agentCommandsButton.setAttribute("aria-label", "Open chatgpt-web");
+    agentCommandsButton.title = "Open an agent first with C, H, or O";
     agentCommandMenu.replaceChildren();
     return;
   }
-  agentCommandsButton.textContent = "⋯";
-  agentCommandsButton.disabled = false;
   const label = agentLabels[agent];
   agentCommandsButton.title = `${label} commands`;
   agentCommandsButton.setAttribute("aria-label", `Open common ${label} commands`);
@@ -1246,10 +1240,7 @@ function bindAgentLaunch(selector: string, agent: Exclude<AgentKind, "shell">, c
 agentCommandsButton?.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   event.stopPropagation();
-  if (activeTab?.agent === "shell") {
-    sendTerminalInput("chatgpt-web\r");
-    return;
-  }
+  if (activeTab?.agent === "shell") return;
   setAgentCommandMenu(agentCommandMenu?.hidden ?? true);
 });
 agentCommandMenu?.addEventListener("pointerdown", (event) => {
