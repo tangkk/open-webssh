@@ -176,7 +176,7 @@ are intentionally sent only after a deliberate button press.
 | `H` | Start Hermes and open its session picker |
 | `O` | Start OpenClaw and open its session picker |
 | `T` | List and attach to a tmux session; its command menu defaults to Codex |
-| `G` | When no C/H/O agent is selected, run `chatgpt-web` in the current shell |
+| `G` | When no C/H/O agent is selected, run [`chatgpt-web`](https://github.com/tangkk/chatgpt-cli) in the current shell |
 | `⋯` | After selecting C/H/O, open that agent's slash-command menu |
 | `⧉` | Copy the selected terminal text |
 | `⎘` | Paste clipboard text into the terminal |
@@ -201,6 +201,11 @@ The `⋯` menu is per terminal tab:
 The menu state is inferred from the C/H/O buttons. If an agent is launched
 manually inside the shell, the menu state may remain unknown until one of those
 buttons is used.
+
+`G` is available only while the active tab has no selected C/H/O agent. It
+sends `chatgpt-web` followed by Enter, so install and configure the
+[ChatGPT CLI](https://github.com/tangkk/chatgpt-cli) on the relevant SSH target
+before using it.
 
 ## Mobile input
 
