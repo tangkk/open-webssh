@@ -627,8 +627,6 @@ async function loadAvailableTargets() {
   renderTargetPicker();
   renderTargetMenu();
   renderTabs();
-  renderAgentCommandMenu();
-  updateTargetControls();
 }
 
 function renderTabs() {
@@ -1034,9 +1032,6 @@ function connect() {
   }
   tab.target = selectedTarget;
   tab.name = tabName(selectedTarget, tab.id);
-  renderAgentCommandMenu();
-  updateTargetControls();
-  renderTabs();
   shouldReconnect = true;
   connectButton.disabled = true;
   setStatus("Connecting…", "working");
