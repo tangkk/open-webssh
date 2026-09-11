@@ -8,7 +8,16 @@
       "user": "remote-user",
       "knownHostsFile": "/etc/webssh/known_hosts-primary",
       "tmuxBin": "tmux",
-      "capabilities": { "tmux": true, "agents": true }
+      "capabilities": { "tmux": true, "agents": true },
+      "extraAgent": {
+        "buttonLabel": "O",
+        "label": "Optional agent",
+        "launchCommand": "optional-agent",
+        "commands": [
+          { "id": "help", "label": "/help", "description": "Show available commands", "command": "/help" },
+          { "id": "sessions", "label": "/sessions", "description": "Browse sessions", "command": "/sessions" }
+        ]
+      }
     },
     {
       "id": "secondary",

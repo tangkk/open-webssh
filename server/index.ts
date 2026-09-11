@@ -15,10 +15,14 @@ type ClientMessage =
   | { type: "sign_response"; id: string; signature?: string; error?: string }
   | { type: "input"; data: string }
   | { type: "resize"; cols: number; rows: number }
-  | { type: "tmux_sessions" };
+  | { type: "tmux_sessions" }
+  | { type: "extra_agent_launch" }
+  | { type: "extra_agent_command"; id: string };
 
 type TmuxSession = { name: string; windows: number; attached: boolean };
 type TargetCapabilities = { tmux?: boolean; agents?: boolean };
+type ExtraAgentCommand = { id: string; label: string; description: string; command: string };
+type ExtraAgent = { buttonLabel: string; label: string; launchCommand: string; commands: ExtraAgentCommand[] };
 type Target = {
   id: string;
   label: string;
@@ -28,8 +32,10 @@ type Target = {
   knownHostsFile: string;
   tmuxBin?: string;
   capabilities?: TargetCapabilities;
+  extraAgent?: ExtraAgent;
 };
-type PublicTarget = Pick<Target, "id" | "label"> & { capabilities: TargetCapabilities };
+type PublicExtraAgent = Pick<ExtraAgent, "buttonLabel" | "label"> & { commands: Pick<ExtraAgentCommand, "id" | "label" | "description">[] };
+type PublicTarget = Pick<Target, "id" | "label"> & { capabilities: TargetCapabilities; extraAgent?: PublicExtraAgent };
 const tmuxSessionMarker = "__WEBSSH_TMUX__";
 const tmuxFieldMarker = "__WEBSSH_FIELD__";
 
@@ -81,6 +87,25 @@ function fallbackTarget(): Target {
   };
 }
 
+function validateExtraAgent(value: unknown, targetId: string): ExtraAgent | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`Target ${targetId} has an invalid extraAgent`);
+  const agent = value as Partial<ExtraAgent>;
+  if (!agent.buttonLabel?.trim() || [...agent.buttonLabel.trim()].length > 3) throw new Error(`Target ${targetId} has an invalid extraAgent buttonLabel`);
+  if (!agent.label?.trim()) throw new Error(`Target ${targetId} has an invalid extraAgent label`);
+  if (!agent.launchCommand?.trim()) throw new Error(`Target ${targetId} has an invalid extraAgent launchCommand`);
+  if (!Array.isArray(agent.commands)) throw new Error(`Target ${targetId} has invalid extraAgent commands`);
+  const commands = agent.commands.map((value, index) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`Target ${targetId} has an invalid extraAgent command ${index + 1}`);
+    const command = value as Partial<ExtraAgentCommand>;
+    if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(command.id || "")) throw new Error(`Target ${targetId} has an invalid extraAgent command id`);
+    if (!command.label?.trim() || !command.description?.trim() || !command.command?.trim()) throw new Error(`Target ${targetId} has an incomplete extraAgent command`);
+    return { id: command.id!, label: command.label.trim(), description: command.description.trim(), command: command.command.trim() };
+  });
+  if (new Set(commands.map((command) => command.id)).size !== commands.length) throw new Error(`Target ${targetId} has duplicate extraAgent command ids`);
+  return { buttonLabel: agent.buttonLabel.trim(), label: agent.label.trim(), launchCommand: agent.launchCommand.trim(), commands };
+}
+
 function validateTarget(value: unknown, index: number): Target {
   if (!value || typeof value !== "object") throw new Error(`Target ${index + 1} must be an object`);
   const target = value as Partial<Target>;
@@ -93,6 +118,7 @@ function validateTarget(value: unknown, index: number): Target {
   if (target.capabilities !== undefined && (typeof target.capabilities !== "object" || Array.isArray(target.capabilities))) {
     throw new Error(`Target ${target.id} has invalid capabilities`);
   }
+  const extraAgent = validateExtraAgent(target.extraAgent, target.id!);
   return {
     id: target.id!,
     label: target.label.trim(),
@@ -102,6 +128,7 @@ function validateTarget(value: unknown, index: number): Target {
     knownHostsFile: target.knownHostsFile.trim(),
     tmuxBin: target.tmuxBin?.trim() || "tmux",
     capabilities: { tmux: Boolean(target.capabilities?.tmux), agents: Boolean(target.capabilities?.agents) },
+    extraAgent,
   };
 }
 
@@ -123,7 +150,16 @@ async function loadTargets(): Promise<void> {
 }
 
 function publicTargets(): PublicTarget[] {
-  return targets.map(({ id, label, capabilities }) => ({ id, label, capabilities: capabilities || {} }));
+  return targets.map(({ id, label, capabilities, extraAgent }) => ({
+    id,
+    label,
+    capabilities: capabilities || {},
+    extraAgent: extraAgent && {
+      buttonLabel: extraAgent.buttonLabel,
+      label: extraAgent.label,
+      commands: extraAgent.commands.map(({ id, label, description }) => ({ id, label, description })),
+    },
+  }));
 }
 
 async function validateProductionConfiguration(): Promise<void> {
@@ -382,6 +418,11 @@ websocketServer.on("connection", (websocket) => {
       } catch {
         send(websocket, { type: "tmux_sessions", sessions: [], error: "Unable to list tmux sessions" });
       }
+    } else if (message.type === "extra_agent_launch" && terminal && target?.extraAgent && target.capabilities?.agents) {
+      terminal.write(`${target.extraAgent.launchCommand}\r`);
+    } else if (message.type === "extra_agent_command" && terminal && target?.extraAgent && target.capabilities?.agents) {
+      const command = target.extraAgent.commands.find((candidate) => candidate.id === message.id);
+      if (command) terminal.write(`${command.command}\r`);
     } else if (message.type === "input" && terminal) {
       terminal.write(Buffer.from(message.data, "base64").toString("utf8"));
     } else if (message.type === "resize" && terminal) {

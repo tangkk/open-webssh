@@ -1,8 +1,8 @@
 # Open WebSSH
 
 Open WebSSH is a self-hosted, mobile-first alternative for remote terminal
-workflows such as Codex Remote. It lets you reopen Codex, Hermes, OpenClaw,
-tmux, or an ordinary shell from Safari, Chrome, or a desktop browser while
+workflows such as Codex Remote. It lets you reopen Codex, Hermes, a configured
+agent, tmux, or an ordinary shell from Safari, Chrome, or a desktop browser while
 keeping control of the gateway and SSH endpoint. It is a general Web SSH
 gateway, not an official Codex client or a drop-in implementation of every
 feature in a hosted remote-control product.
@@ -131,6 +131,7 @@ Each target has these private fields:
 | `knownHostsFile` | Dedicated pinned host-key file for that target |
 | `tmuxBin` | Optional absolute path to tmux on that target |
 | `capabilities.tmux` / `capabilities.agents` | Whether to enable tmux and agent shortcut controls for that target |
+| `extraAgent` | Optional target-specific O button, including its label, launch command, and `⋯` menu commands |
 
 After changing a target, verify its host key out of band, update that target's
 `knownHostsFile`, and restart the service. Do not use labels or target IDs as a
@@ -174,10 +175,10 @@ are intentionally sent only after a deliberate button press.
 | --- | --- |
 | `C` | Start/resume Codex with `codex resume --all --no-alt-screen` |
 | `H` | Start Hermes and open its session picker |
-| `O` | Start OpenClaw and open its session picker |
+| `O` | Start the target's optional configured agent; its label and command are private target configuration |
 | `T` | List and attach to a tmux session; its command menu defaults to Codex |
 | `G` | When no C/H/O agent is selected, run [`chatgpt-web`](https://github.com/tangkk/chatgpt-cli) in the current shell |
-| `⋯` | After selecting C/H/O, open that agent's slash-command menu |
+| `⋯` | After selecting C, H, or O, open that agent's slash-command menu |
 | `⧉` | Copy the selected terminal text |
 | `⎘` | Paste clipboard text into the terminal |
 | `⌧` | Send `clear` |
@@ -196,7 +197,7 @@ The `⋯` menu is per terminal tab:
 
 - Codex: `/status`, `/model`, `/compact`, `/help`
 - Hermes: `/status`, `/model`, `/sessions`, `/resume`, `/compress`, `/help`
-- OpenClaw: `/status`, `/model`, `/sessions`, `/compact`, `/help`
+- O: commands declared by that target's private `extraAgent.commands` list
 
 The menu state is inferred from the C/H/O buttons. If an agent is launched
 manually inside the shell, the menu state may remain unknown until one of those
@@ -206,6 +207,22 @@ buttons is used.
 sends `chatgpt-web` followed by Enter, so install and configure the
 [ChatGPT CLI](https://github.com/tangkk/chatgpt-cli) on the relevant SSH target
 before using it.
+
+### Configuring O
+
+The O button is intentionally generic. Add an `extraAgent` object to the
+relevant private target entry; the generic schema is shown in
+[`deploy/targets.json.example`](deploy/targets.json.example). `buttonLabel`
+controls the visible key, `label` controls the accessible name and `⋯` heading,
+and `launchCommand` starts the tool. Each `commands` entry has a stable `id`,
+a displayed `label`, a `description`, and the server-side command to run.
+Set `launchCommand` to the tool's own resume/continue invocation when O should
+reopen the most recent session instead of starting a new one.
+
+The browser receives only the button label, agent label, and menu text. Clicking
+O or a menu item sends an action ID; the gateway looks up and executes the
+actual configured command for the active target. This lets each target use a
+different tool without embedding target-specific commands in public code.
 
 ## Mobile input
 

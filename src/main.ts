@@ -19,7 +19,9 @@ type ServerMessage =
 
 type TmuxSession = { name: string; windows: number; attached: boolean };
 type TargetCapabilities = { tmux?: boolean; agents?: boolean };
-type TargetDescriptor = { id: string; label: string; capabilities: TargetCapabilities };
+type ExtraAgentCommand = { id: string; label: string; description: string };
+type ExtraAgentDescriptor = { buttonLabel: string; label: string; commands: ExtraAgentCommand[] };
+type TargetDescriptor = { id: string; label: string; capabilities: TargetCapabilities; extraAgent?: ExtraAgentDescriptor };
 
 type ThemeName = "signal" | "tokyo-night" | "catppuccin-mocha" | "gruvbox-dark" | "github-light" | "catppuccin-latte" | "gruvbox-light";
 type ThemeDefinition = {
@@ -123,7 +125,7 @@ app.innerHTML = `
       <div class="command-row command-row-commands">
         <button class="control-key agent-key" id="codex-resume" type="button" aria-label="Send codex resume --all --no-alt-screen" title="Codex">C</button>
         <button class="control-key agent-key" id="hermes-sessions" type="button" aria-label="Open Hermes and list sessions" title="Hermes">H</button>
-        <button class="control-key agent-key" id="openclaw-sessions" type="button" aria-label="Open OpenClaw and list sessions" title="OpenClaw">O</button>
+        <button class="control-key agent-key" id="extra-agent" type="button" aria-label="Open configured agent" title="Configured agent">O</button>
         <button class="control-key agent-key" id="tmux-attach" type="button" aria-label="Choose a tmux session" aria-expanded="false" title="tmux sessions">T</button>
         <button class="control-key agent-key" id="agent-commands" type="button" aria-label="Open chatgpt-web" aria-expanded="false" title="Open chatgpt-web">G</button>
         <button class="control-key copy-key" id="copy-selection" type="button" aria-label="Copy selected text" disabled>⧉</button>
@@ -536,7 +538,7 @@ let identity: DeviceIdentity;
 let socket: WebSocket | undefined;
 let shouldReconnect = false;
 let tmuxAttached = false;
-type AgentKind = "shell" | "codex" | "hermes" | "openclaw";
+type AgentKind = "shell" | "codex" | "hermes" | "extra";
 type TerminalTab = {
   id: number;
   name: string;
@@ -578,14 +580,22 @@ function supports(tab: TerminalTab | undefined, capability: keyof TargetCapabili
 
 function updateTargetControls() {
   const tmuxButton = document.querySelector<HTMLButtonElement>("#tmux-attach");
+  const extraAgentButton = document.querySelector<HTMLButtonElement>("#extra-agent");
   const agentsAvailable = supports(activeTab, "agents");
   const tmuxAvailable = supports(activeTab, "tmux");
+  const extraAgent = activeTab?.target.extraAgent;
   document.querySelectorAll<HTMLButtonElement>(".agent-key").forEach((button) => {
     if (button === tmuxButton) button.disabled = !tmuxAvailable;
+    else if (button === extraAgentButton) button.disabled = !agentsAvailable || !extraAgent;
     else if (button === agentCommandsButton) button.disabled = activeTab?.agent === "shell" ? !agentsAvailable : false;
     else button.disabled = !agentsAvailable;
   });
   if (tmuxButton) tmuxButton.title = tmuxAvailable ? "tmux sessions" : "tmux is unavailable for this target";
+  if (extraAgentButton) {
+    extraAgentButton.textContent = extraAgent?.buttonLabel || "O";
+    extraAgentButton.title = extraAgent ? `Start ${extraAgent.label}` : "No configured agent";
+    extraAgentButton.setAttribute("aria-label", extraAgent ? `Start ${extraAgent.label}` : "No configured agent");
+  }
 }
 
 function renderTargetPicker() {
@@ -1166,7 +1176,8 @@ bindControlKey("#arrow-up", "\u001b[A");
 bindControlKey("#arrow-down", "\u001b[B");
 bindControlKey("#enter-key", "\r");
 type AgentCommand = { command: string; description: string };
-const agentCommands: Record<Exclude<AgentKind, "shell">, AgentCommand[]> = {
+type BuiltInAgent = Exclude<AgentKind, "shell" | "extra">;
+const agentCommands: Record<BuiltInAgent, AgentCommand[]> = {
   codex: [
     { command: "/status", description: "Session and usage" },
     { command: "/model", description: "View or switch model" },
@@ -1181,18 +1192,10 @@ const agentCommands: Record<Exclude<AgentKind, "shell">, AgentCommand[]> = {
     { command: "/compress", description: "Compress the current context" },
     { command: "/help", description: "Show available commands" },
   ],
-  openclaw: [
-    { command: "/status", description: "Runtime status and usage" },
-    { command: "/model", description: "View or switch model" },
-    { command: "/sessions", description: "Browse past sessions" },
-    { command: "/compact", description: "Compact the current context" },
-    { command: "/help", description: "Show available commands" },
-  ],
 };
-const agentLabels: Record<Exclude<AgentKind, "shell">, string> = {
+const agentLabels: Record<BuiltInAgent, string> = {
   codex: "Codex",
   hermes: "Hermes",
-  openclaw: "OpenClaw",
 };
 const agentCommandsButton = document.querySelector<HTMLButtonElement>("#agent-commands");
 const agentCommandMenu = document.querySelector<HTMLElement>("#agent-command-menu");
@@ -1213,21 +1216,31 @@ function renderAgentCommandMenu() {
     return;
   }
   agentCommandsButton.textContent = "⋯";
+  const extraAgent = activeTab?.target.extraAgent;
+  if (agent === "extra" && !extraAgent) {
+    agentCommandsButton.disabled = true;
+    agentCommandMenu.replaceChildren();
+    return;
+  }
   agentCommandsButton.disabled = false;
-  const label = agentLabels[agent];
+  const label = agent === "extra" ? extraAgent!.label : agentLabels[agent];
   agentCommandsButton.title = `${label} commands`;
   agentCommandsButton.setAttribute("aria-label", `Open common ${label} commands`);
   agentCommandMenu.setAttribute("aria-label", `${label} common commands`);
   const heading = document.createElement("div");
   heading.className = "slash-menu-heading";
   heading.textContent = `${label} Commands`;
-  const items = agentCommands[agent].map(({ command, description }) => {
+  const commands = agent === "extra"
+    ? extraAgent!.commands.map(({ id, label, description }) => ({ id, label, description }))
+    : agentCommands[agent].map(({ command, description }) => ({ id: command, label: command, description }));
+  const items = commands.map(({ id, label, description }) => {
     const button = document.createElement("button");
     button.type = "button";
     button.setAttribute("role", "menuitem");
-    button.dataset.command = command;
+    button.dataset.command = id;
+    if (agent === "extra") button.dataset.extraAgentCommand = id;
     const code = document.createElement("code");
-    code.textContent = command;
+    code.textContent = label;
     const detail = document.createElement("small");
     detail.textContent = description;
     button.append(code, detail);
@@ -1241,7 +1254,7 @@ function setActiveAgent(agent: AgentKind) {
   imeLog("agent", agent);
   renderAgentCommandMenu();
 }
-function bindAgentLaunch(selector: string, agent: Exclude<AgentKind, "shell">, command: string) {
+function bindAgentLaunch(selector: string, agent: BuiltInAgent, command: string) {
   document.querySelector(selector)?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     setActiveAgent(agent);
@@ -1262,7 +1275,8 @@ agentCommandMenu?.addEventListener("pointerdown", (event) => {
   if (!item) return;
   event.preventDefault();
   event.stopPropagation();
-  sendTerminalInput(`${item.dataset.command}\r`);
+  if (activeTab?.agent === "extra" && item.dataset.extraAgentCommand) send({ type: "extra_agent_command", id: item.dataset.extraAgentCommand });
+  else sendTerminalInput(`${item.dataset.command}\r`);
   setAgentCommandMenu(false);
 });
 document.addEventListener("pointerdown", (event) => {
@@ -1271,6 +1285,12 @@ document.addEventListener("pointerdown", (event) => {
   setAgentCommandMenu(false);
 });
 bindAgentLaunch("#codex-resume", "codex", "codex resume --all --no-alt-screen\r");
+document.querySelector("#extra-agent")?.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  if (!activeTab?.target.extraAgent || !supports(activeTab, "agents")) return;
+  setActiveAgent("extra");
+  send({ type: "extra_agent_launch" });
+});
 const tmuxAttachButton = document.querySelector<HTMLButtonElement>("#tmux-attach");
 const tmuxSessionMenu = document.querySelector<HTMLElement>("#tmux-session-menu");
 function setTmuxSessionMenu(open: boolean) {
@@ -1342,7 +1362,7 @@ document.addEventListener("pointerdown", (event) => {
   if (tmuxSessionMenu.contains(event.target as Node) || tmuxAttachButton?.contains(event.target as Node)) return;
   setTmuxSessionMenu(false);
 });
-function bindInteractiveCommand(selector: string, agent: Exclude<AgentKind, "shell">, entryCommand: string, followupCommand: string, delayMs = 2500) {
+function bindInteractiveCommand(selector: string, agent: BuiltInAgent, entryCommand: string, followupCommand: string, delayMs = 2500) {
   document.querySelector(selector)?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     setActiveAgent(agent);
@@ -1351,7 +1371,6 @@ function bindInteractiveCommand(selector: string, agent: Exclude<AgentKind, "she
   });
 }
 bindInteractiveCommand("#hermes-sessions", "hermes", "hermes chat\r", "/sessions\r");
-bindInteractiveCommand("#openclaw-sessions", "openclaw", "openclaw tui\r", "/sessions\r");
 renderAgentCommandMenu();
 bindControlKey("#clear-screen", "clear\r");
 const copySelectionButton = document.querySelector<HTMLButtonElement>("#copy-selection")!;
