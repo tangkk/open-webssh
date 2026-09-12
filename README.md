@@ -182,7 +182,7 @@ are intentionally sent only after a deliberate button press.
 | `⧉` | Copy the selected terminal text |
 | `⎘` | Paste clipboard text into the terminal |
 | `⌧` | Send `clear` |
-| `⇞` / `⇟` | Page up / page down; tmux uses tmux mouse-wheel events |
+| `⇞` / `⇟` | Page up / page down; ordinary shells use local scrollback, alternate-screen TUIs receive real PageUp/PageDown, and tmux uses tmux mouse-wheel events |
 | `⏻` | Logout and destroy the active terminal session |
 | `⎋` | Send Escape |
 | `⇥` | Send Tab |
