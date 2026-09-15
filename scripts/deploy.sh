@@ -10,6 +10,7 @@ remote_env="${WEBSSH_REMOTE_ENV:-/etc/webssh/webssh.env}"
 service_name="${WEBSSH_SYSTEMD_SERVICE:-webssh.service}"
 remote_target="${deploy_user}@${WEBSSH_DEPLOY_HOST}"
 remote_env_dir="${remote_env%/*}"
+ssh_opts=(-o BatchMode=yes -o ConnectTimeout=10)
 
 if [[ "$remote_env_dir" == "$remote_env" ]]; then
   echo "WEBSSH_REMOTE_ENV must include a directory" >&2
@@ -34,9 +35,9 @@ EOF
 
 npm run build
 
-ssh "$remote_target" "install -d -m 755 '$remote_dir' '$remote_env_dir'"
-scp -r dist dist-server package.json package-lock.json "$remote_target:$remote_dir/"
-scp "$temp_env" "$remote_target:/tmp/open-webssh-env.$$"
-ssh "$remote_target" "install -o root -g root -m 600 /tmp/open-webssh-env.$$ '$remote_env' && rm -f /tmp/open-webssh-env.$$ && systemctl restart '$service_name' && systemctl is-active --quiet '$service_name'"
+ssh "${ssh_opts[@]}" "$remote_target" "install -d -m 755 '$remote_dir' '$remote_env_dir'"
+scp "${ssh_opts[@]}" -r dist dist-server package.json package-lock.json "$remote_target:$remote_dir/"
+scp "${ssh_opts[@]}" "$temp_env" "$remote_target:/tmp/open-webssh-env.$$"
+ssh "${ssh_opts[@]}" "$remote_target" "install -o root -g root -m 600 /tmp/open-webssh-env.$$ '$remote_env' && rm -f /tmp/open-webssh-env.$$ && systemctl restart '$service_name' && systemctl is-active --quiet '$service_name'"
 
 echo "Deployed WebSSH to ${remote_target}:${remote_dir}"
