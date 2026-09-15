@@ -123,11 +123,11 @@ app.innerHTML = `
     </div>
     <div class="command-bar" id="command-bar" aria-label="Terminal controls">
       <div class="command-row command-row-commands">
-        <button class="control-key agent-key" id="codex-resume" type="button" aria-label="Send codex resume --all --no-alt-screen" title="Codex">C</button>
+        <button class="control-key agent-key" id="agent-resume" type="button" aria-label="Resume an agent session" aria-expanded="false" title="Resume agent">C</button>
         <button class="control-key agent-key" id="hermes-sessions" type="button" aria-label="Open Hermes and list sessions" title="Hermes">H</button>
         <button class="control-key agent-key" id="extra-agent" type="button" aria-label="Open configured agent" title="Configured agent">O</button>
         <button class="control-key agent-key" id="tmux-attach" type="button" aria-label="Choose a tmux session" aria-expanded="false" title="tmux sessions">T</button>
-        <button class="control-key agent-key" id="agent-commands" type="button" aria-label="Open chatgpt-web" aria-expanded="false" title="Open chatgpt-web">G</button>
+        <button class="control-key agent-key" id="agent-commands" type="button" aria-label="Open agent commands" aria-expanded="false" title="Agent commands">⋯</button>
         <button class="control-key copy-key" id="copy-selection" type="button" aria-label="Copy selected text" disabled>⧉</button>
         <button class="control-key" id="paste" type="button" aria-label="Paste clipboard contents">⎘</button>
         <button class="control-key" id="clear-screen" type="button" aria-label="Clear screen">⌧</button>
@@ -147,6 +147,7 @@ app.innerHTML = `
         <button class="control-key enter-key" id="enter-key" type="button" aria-label="Send Enter">↵</button>
       </div>
       <div class="slash-menu" id="agent-command-menu" role="menu" aria-label="Common commands for the current agent" hidden></div>
+      <div class="slash-menu" id="agent-resume-menu" role="menu" aria-label="Resume an agent session" hidden></div>
       <div class="slash-menu" id="tmux-session-menu" role="menu" aria-label="Tmux sessions" hidden></div>
     </div>
     <dialog id="device-dialog">
@@ -538,7 +539,7 @@ let identity: DeviceIdentity;
 let socket: WebSocket | undefined;
 let shouldReconnect = false;
 let tmuxAttached = false;
-type AgentKind = "shell" | "codex" | "hermes" | "extra";
+type AgentKind = "shell" | "codex" | "hermes" | "claude" | "extra";
 type TerminalTab = {
   id: number;
   name: string;
@@ -587,7 +588,7 @@ function updateTargetControls() {
   document.querySelectorAll<HTMLButtonElement>(".agent-key").forEach((button) => {
     if (button === tmuxButton) button.disabled = !tmuxAvailable;
     else if (button === extraAgentButton) button.disabled = !agentsAvailable || !extraAgent;
-    else if (button === agentCommandsButton) button.disabled = activeTab?.agent === "shell" ? !agentsAvailable : false;
+    else if (button === agentCommandsButton) button.disabled = activeTab?.agent === "shell";
     else button.disabled = !agentsAvailable;
   });
   if (tmuxButton) tmuxButton.title = tmuxAvailable ? "tmux sessions" : "tmux is unavailable for this target";
@@ -1192,10 +1193,17 @@ const agentCommands: Record<BuiltInAgent, AgentCommand[]> = {
     { command: "/compress", description: "Compress the current context" },
     { command: "/help", description: "Show available commands" },
   ],
+  claude: [
+    { command: "/status", description: "Session, model, and context" },
+    { command: "/model", description: "View or switch model" },
+    { command: "/compact", description: "Compact the current context" },
+    { command: "/help", description: "Show available commands" },
+  ],
 };
 const agentLabels: Record<BuiltInAgent, string> = {
   codex: "Codex",
   hermes: "Hermes",
+  claude: "Claude",
 };
 const agentCommandsButton = document.querySelector<HTMLButtonElement>("#agent-commands");
 const agentCommandMenu = document.querySelector<HTMLElement>("#agent-command-menu");
@@ -1208,10 +1216,10 @@ function renderAgentCommandMenu() {
   if (!agentCommandMenu || !agentCommandsButton) return;
   const agent = activeTab?.agent ?? "shell";
   if (agent === "shell") {
-    agentCommandsButton.textContent = "G";
-    agentCommandsButton.disabled = !supports(activeTab, "agents");
-    agentCommandsButton.title = "Open chatgpt-web";
-    agentCommandsButton.setAttribute("aria-label", "Open chatgpt-web");
+    agentCommandsButton.textContent = "⋯";
+    agentCommandsButton.disabled = true;
+    agentCommandsButton.title = "Agent commands";
+    agentCommandsButton.setAttribute("aria-label", "Open agent commands");
     agentCommandMenu.replaceChildren();
     return;
   }
@@ -1254,20 +1262,9 @@ function setActiveAgent(agent: AgentKind) {
   imeLog("agent", agent);
   renderAgentCommandMenu();
 }
-function bindAgentLaunch(selector: string, agent: BuiltInAgent, command: string) {
-  document.querySelector(selector)?.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    setActiveAgent(agent);
-    sendTerminalInput(command);
-  });
-}
 agentCommandsButton?.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   event.stopPropagation();
-  if (activeTab?.agent === "shell") {
-    sendTerminalInput("chatgpt-web\r");
-    return;
-  }
   setAgentCommandMenu(agentCommandMenu?.hidden ?? true);
 });
 agentCommandMenu?.addEventListener("pointerdown", (event) => {
@@ -1284,7 +1281,61 @@ document.addEventListener("pointerdown", (event) => {
   if (agentCommandMenu.contains(event.target as Node) || agentCommandsButton?.contains(event.target as Node)) return;
   setAgentCommandMenu(false);
 });
-bindAgentLaunch("#codex-resume", "codex", "codex resume --all --no-alt-screen\r");
+type ResumeAgent = { agent: BuiltInAgent; label: string; command: string; description: string };
+const resumeAgents: ResumeAgent[] = [
+  { agent: "codex", label: "Codex", command: "codex resume --all --no-alt-screen\r", description: "Resume the most recent Codex session" },
+  { agent: "claude", label: "Claude", command: "claude --resume\r", description: "Choose a Claude session to resume" },
+];
+const agentResumeButton = document.querySelector<HTMLButtonElement>("#agent-resume");
+const agentResumeMenu = document.querySelector<HTMLElement>("#agent-resume-menu");
+function setAgentResumeMenu(open: boolean) {
+  if (!agentResumeMenu || !agentResumeButton) return;
+  agentResumeMenu.hidden = !open;
+  agentResumeButton.setAttribute("aria-expanded", String(open));
+}
+function renderAgentResumeMenu() {
+  if (!agentResumeMenu) return;
+  const heading = document.createElement("div");
+  heading.className = "slash-menu-heading";
+  heading.textContent = "Resume agent";
+  const items = resumeAgents.map(({ agent, label, description }) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute("role", "menuitem");
+    button.dataset.resumeAgent = agent;
+    const code = document.createElement("code");
+    code.textContent = label;
+    const detail = document.createElement("small");
+    detail.textContent = description;
+    button.append(code, detail);
+    return button;
+  });
+  agentResumeMenu.replaceChildren(heading, ...items);
+}
+agentResumeButton?.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  setAgentCommandMenu(false);
+  if (agentResumeMenu?.hidden ?? true) renderAgentResumeMenu();
+  setAgentResumeMenu(agentResumeMenu?.hidden ?? true);
+});
+agentResumeMenu?.addEventListener("pointerdown", (event) => {
+  const item = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-resume-agent]");
+  if (!item?.dataset.resumeAgent) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const resumeAgent = resumeAgents.find((candidate) => candidate.agent === item.dataset.resumeAgent);
+  if (resumeAgent) {
+    setActiveAgent(resumeAgent.agent);
+    sendTerminalInput(resumeAgent.command);
+  }
+  setAgentResumeMenu(false);
+});
+document.addEventListener("pointerdown", (event) => {
+  if (!agentResumeMenu || agentResumeMenu.hidden) return;
+  if (agentResumeMenu.contains(event.target as Node) || agentResumeButton?.contains(event.target as Node)) return;
+  setAgentResumeMenu(false);
+});
 document.querySelector("#extra-agent")?.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   if (!activeTab?.target.extraAgent || !supports(activeTab, "agents")) return;

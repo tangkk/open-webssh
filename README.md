@@ -173,11 +173,10 @@ are intentionally sent only after a deliberate button press.
 
 | Button | Meaning |
 | --- | --- |
-| `C` | Start/resume Codex with `codex resume --all --no-alt-screen` |
+| `C` | Expand a menu to resume Codex (`codex resume --all --no-alt-screen`) or Claude (`claude --resume`) |
 | `H` | Start Hermes and open its session picker |
 | `O` | Start the target's optional configured agent; its label and command are private target configuration |
 | `T` | List and attach to a tmux session; its command menu defaults to Codex |
-| `G` | When no C/H/O agent is selected, run [`chatgpt-web`](https://github.com/tangkk/chatgpt-cli) in the current shell |
 | `⋯` | After selecting C, H, or O, open that agent's slash-command menu |
 | `⧉` | Copy the selected terminal text |
 | `⎘` | Paste clipboard text into the terminal |
@@ -197,16 +196,12 @@ The `⋯` menu is per terminal tab:
 
 - Codex: `/status`, `/model`, `/compact`, `/help`
 - Hermes: `/status`, `/model`, `/sessions`, `/resume`, `/compress`, `/help`
+- Claude: `/status`, `/model`, `/compact`, `/help`
 - O: commands declared by that target's private `extraAgent.commands` list
 
 The menu state is inferred from the C/H/O buttons. If an agent is launched
 manually inside the shell, the menu state may remain unknown until one of those
 buttons is used.
-
-`G` is available only while the active tab has no selected C/H/O agent. It
-sends `chatgpt-web` followed by Enter, so install and configure the
-[ChatGPT CLI](https://github.com/tangkk/chatgpt-cli) on the relevant SSH target
-before using it.
 
 ### Configuring O
 
