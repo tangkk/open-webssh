@@ -195,7 +195,7 @@ are intentionally sent only after a deliberate button press.
 
 The `⋯` menu is per terminal tab:
 
-- Codex: `/status`, `/model`, `/compact`, `/help`
+- Codex: `/status`, `/model`, `/compact`, `/side`, `/help`
 - Hermes: `/status`, `/model`, `/sessions`, `/resume`, `/compress`, `/help`
 - Claude: `/status`, `/model`, `/compact`, `/btw`, `/help`
 - O: commands declared by that target's private `extraAgent.commands` list

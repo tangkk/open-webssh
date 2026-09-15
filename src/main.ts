@@ -1242,6 +1242,7 @@ const agentCommands: Record<BuiltInAgent, AgentCommand[]> = {
     { command: "/status", description: "Session and usage" },
     { command: "/model", description: "View or switch model" },
     { command: "/compact", description: "Compact the current context" },
+    { command: "/side", description: "Start a side chat without interrupting the main chat" },
     { command: "/help", description: "Show available commands" },
   ],
   hermes: [
