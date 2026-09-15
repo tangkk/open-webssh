@@ -1256,6 +1256,7 @@ const agentCommands: Record<BuiltInAgent, AgentCommand[]> = {
     { command: "/status", description: "Session, model, and context" },
     { command: "/model", description: "View or switch model" },
     { command: "/compact", description: "Compact the current context" },
+    { command: "/btw", description: "Ask a side question outside the conversation" },
     { command: "/help", description: "Show available commands" },
   ],
 };

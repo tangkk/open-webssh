@@ -197,7 +197,7 @@ The `⋯` menu is per terminal tab:
 
 - Codex: `/status`, `/model`, `/compact`, `/help`
 - Hermes: `/status`, `/model`, `/sessions`, `/resume`, `/compress`, `/help`
-- Claude: `/status`, `/model`, `/compact`, `/help`
+- Claude: `/status`, `/model`, `/compact`, `/btw`, `/help`
 - O: commands declared by that target's private `extraAgent.commands` list
 
 The menu state is inferred from the C/H/O buttons. If an agent is launched
