@@ -1372,7 +1372,7 @@ document.addEventListener("pointerdown", (event) => {
 });
 type ResumeAgent = { agent: BuiltInAgent; label: string; command: string; description: string };
 const resumeAgents: ResumeAgent[] = [
-  { agent: "codex", label: "Codex", command: "codex resume --all\r", description: "Resume the most recent Codex session" },
+  { agent: "codex", label: "Codex", command: "codex resume --all --no-alt-screen\r", description: "Resume the most recent Codex session" },
   { agent: "claude", label: "Claude", command: "claude --resume\r", description: "Choose a Claude session to resume" },
 ];
 const agentResumeButton = document.querySelector<HTMLButtonElement>("#agent-resume");
@@ -1596,17 +1596,16 @@ document.querySelector("#keyboard-open")?.addEventListener("pointerdown", (event
   }, 600);
 });
 function pageScroll(direction: "up" | "down") {
-  if (terminal.buffer.active.type === "alternate") {
-    // Alternate-screen TUIs such as OpenCode own their message viewport. Send
-    // the real terminal key so the application can handle its own scrollback,
-    // even when it is running inside tmux.
-    sendTerminalInput(direction === "up" ? "\u001b[5~" : "\u001b[6~");
-    return;
-  }
   if (tmuxAttached) {
     sendTerminalInput(direction === "up"
       ? "\u001b[<64;1;1M".repeat(Math.max(1, Math.round(terminal.rows / 16)))
       : "\u001b[<65;1;1M".repeat(Math.max(1, Math.round(terminal.rows / 16))));
+    return;
+  }
+  if (terminal.buffer.active.type === "alternate") {
+    // Alternate-screen TUIs such as OpenCode own their message viewport. Send
+    // the real terminal key so the application can handle its own scrollback.
+    sendTerminalInput(direction === "up" ? "\u001b[5~" : "\u001b[6~");
     return;
   }
   terminal.scrollLines(direction === "up" ? -Math.round(terminal.rows / 2) : Math.round(terminal.rows / 2));

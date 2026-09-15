@@ -174,7 +174,7 @@ are intentionally sent only after a deliberate button press.
 
 | Button | Meaning |
 | --- | --- |
-| `C` | Expand a menu to resume Codex (`codex resume --all`) or Claude (`claude --resume`) |
+| `C` | Expand a menu to resume Codex (`codex resume --all --no-alt-screen`) or Claude (`claude --resume`) |
 | `H` | Start Hermes and open its session picker |
 | `O` | Start the target's optional configured agent; its label and command are private target configuration |
 | `T` | List and attach to a tmux session; its command menu defaults to Codex |
@@ -182,7 +182,7 @@ are intentionally sent only after a deliberate button press.
 | `⧉` | Copy the selected terminal text |
 | `⎘` | Paste clipboard text into the terminal |
 | `⌧` | Send `clear` |
-| `⇞` / `⇟` | Page up / page down; alternate-screen TUIs (such as OpenCode, including inside tmux) receive real PageUp/PageDown, ordinary shells use local scrollback, and a tmux shell uses tmux mouse-wheel events |
+| `⇞` / `⇟` | Page up / page down; ordinary shells use local scrollback, alternate-screen TUIs receive real PageUp/PageDown, and tmux uses tmux mouse-wheel events |
 | `⏻` | Logout and destroy the active terminal session |
 | `⎋` | Send Escape |
 | `⇥` | Send Tab |
