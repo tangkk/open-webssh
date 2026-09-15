@@ -1,8 +1,9 @@
 # Open WebSSH
 
 Open WebSSH is a self-hosted, mobile-first alternative for remote terminal
-workflows such as Codex Remote. It lets you reopen Codex, Hermes, a configured
-agent, tmux, or an ordinary shell from Safari, Chrome, or a desktop browser while
+workflows such as Codex Remote. It lets you reopen Codex, Claude, Hermes, a
+configured agent, tmux, or an ordinary shell from Safari, Chrome, or a desktop
+browser while
 keeping control of the gateway and SSH endpoint. It is a general Web SSH
 gateway, not an official Codex client or a drop-in implementation of every
 feature in a hosted remote-control product.
