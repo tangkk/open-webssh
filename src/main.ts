@@ -1266,6 +1266,40 @@ const agentLabels: Record<BuiltInAgent, string> = {
 };
 const agentCommandsButton = document.querySelector<HTMLButtonElement>("#agent-commands");
 const agentCommandMenu = document.querySelector<HTMLElement>("#agent-command-menu");
+const PAGE_SCROLL_STORAGE_KEY = "webssh.pageScroll.v1";
+let pageScrollMode: "shell" | "tui" = "shell";
+try {
+  const stored = localStorage.getItem(PAGE_SCROLL_STORAGE_KEY);
+  if (stored === "shell" || stored === "tui") pageScrollMode = stored;
+} catch {
+  // Default remains "shell" when storage is unavailable.
+}
+function renderCurrentCommandMenu() {
+  if (activeTab?.agent === "shell") renderShellHistoryMenu();
+  else renderAgentCommandMenu();
+}
+function pageScrollModeItem(): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.setAttribute("role", "menuitem");
+  const code = document.createElement("code");
+  code.textContent = "⇞/⇟";
+  const detail = document.createElement("small");
+  detail.textContent = pageScrollMode === "tui" ? "TUI keys" : "Shell scroll";
+  button.append(code, detail);
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    pageScrollMode = pageScrollMode === "tui" ? "shell" : "tui";
+    try {
+      localStorage.setItem(PAGE_SCROLL_STORAGE_KEY, pageScrollMode);
+    } catch {
+      // The toggle still works for this session when storage is unavailable.
+    }
+    renderCurrentCommandMenu();
+  });
+  return button;
+}
 function setAgentCommandMenu(open: boolean) {
   if (!agentCommandMenu || !agentCommandsButton) return;
   agentCommandMenu.hidden = !open;
@@ -1314,7 +1348,7 @@ function renderAgentCommandMenu() {
     button.append(code, detail);
     return button;
   });
-  agentCommandMenu.replaceChildren(heading, ...items);
+  agentCommandMenu.replaceChildren(heading, ...items, pageScrollModeItem());
 }
 function renderShellHistoryMenu() {
   if (!agentCommandMenu || !activeTab) return;
@@ -1327,7 +1361,7 @@ function renderShellHistoryMenu() {
     empty.type = "button";
     empty.disabled = true;
     empty.textContent = "No recent commands yet";
-    agentCommandMenu.replaceChildren(heading, empty);
+    agentCommandMenu.replaceChildren(heading, empty, pageScrollModeItem());
     return;
   }
   const items = commands.map((command) => {
@@ -1342,7 +1376,7 @@ function renderShellHistoryMenu() {
     button.append(code);
     return button;
   });
-  agentCommandMenu.replaceChildren(heading, ...items);
+  agentCommandMenu.replaceChildren(heading, ...items, pageScrollModeItem());
 }
 function setActiveAgent(agent: AgentKind) {
   if (!activeTab) return;
@@ -1596,16 +1630,17 @@ document.querySelector("#keyboard-open")?.addEventListener("pointerdown", (event
   }, 600);
 });
 function pageScroll(direction: "up" | "down") {
+  if (terminal.buffer.active.type === "alternate" && (pageScrollMode === "tui" || !tmuxAttached)) {
+    // Alternate-screen TUIs such as OpenCode own their message viewport. Send
+    // the real terminal key so the application can handle its own scrollback.
+    // In "tui" paging mode this also applies inside tmux.
+    sendTerminalInput(direction === "up" ? "\u001b[5~" : "\u001b[6~");
+    return;
+  }
   if (tmuxAttached) {
     sendTerminalInput(direction === "up"
       ? "\u001b[<64;1;1M".repeat(Math.max(1, Math.round(terminal.rows / 16)))
       : "\u001b[<65;1;1M".repeat(Math.max(1, Math.round(terminal.rows / 16))));
-    return;
-  }
-  if (terminal.buffer.active.type === "alternate") {
-    // Alternate-screen TUIs such as OpenCode own their message viewport. Send
-    // the real terminal key so the application can handle its own scrollback.
-    sendTerminalInput(direction === "up" ? "\u001b[5~" : "\u001b[6~");
     return;
   }
   terminal.scrollLines(direction === "up" ? -Math.round(terminal.rows / 2) : Math.round(terminal.rows / 2));
