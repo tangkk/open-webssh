@@ -276,6 +276,7 @@ html.keyboard-requested .command-bar.visible { display: none; }
 }
 .slash-menu button:active { background: rgba(51, 209, 122, .14); }
 .slash-menu code { color: #33d17a; font: 15px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.slash-menu code.history-command { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .slash-menu small { color: rgba(232, 232, 232, .68); font-size: 11px; }
 
 dialog {

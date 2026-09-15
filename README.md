@@ -178,7 +178,7 @@ are intentionally sent only after a deliberate button press.
 | `H` | Start Hermes and open its session picker |
 | `O` | Start the target's optional configured agent; its label and command are private target configuration |
 | `T` | List and attach to a tmux session; its command menu defaults to Codex |
-| `⋯` | After selecting C, H, or O, open that agent's slash-command menu |
+| `⋯` | In the shell, open the recent command history for this target; after selecting C, H, or O, open that agent's slash-command menu |
 | `⧉` | Copy the selected terminal text |
 | `⎘` | Paste clipboard text into the terminal |
 | `⌧` | Send `clear` |
@@ -203,6 +203,11 @@ The `⋯` menu is per terminal tab:
 The menu state is inferred from the C/H/O buttons. If an agent is launched
 manually inside the shell, the menu state may remain unknown until one of those
 buttons is used.
+
+While no C/H/O agent is selected, the `⋯` menu shows the most recent commands
+typed into the shell for that SSH target, so you can re-run an earlier command
+such as `cd` with one tap. This history is tracked locally in the browser
+profile, keyed per target, and is never uploaded to the gateway.
 
 ### Configuring O
 
