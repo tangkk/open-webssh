@@ -897,7 +897,8 @@ function trackCommandInput(tab: TerminalTab, data: string) {
 function bindTerminalBehavior(tab: TerminalTab) {
   tab.terminal.onData((data) => {
     imeLog("SEND", JSON.stringify(data));
-    trackCommandInput(tab, data);
+    if (tab.agent === "shell") trackCommandInput(tab, data);
+    else { tab.commandLine = ""; tab.commandEscapeState = 0; }
     sendToTab(tab, { type: "input", data: bytesToBase64(new TextEncoder().encode(data)) });
   });
   tab.terminal.onScroll(() => {
