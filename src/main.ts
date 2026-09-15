@@ -1372,7 +1372,7 @@ document.addEventListener("pointerdown", (event) => {
 });
 type ResumeAgent = { agent: BuiltInAgent; label: string; command: string; description: string };
 const resumeAgents: ResumeAgent[] = [
-  { agent: "codex", label: "Codex", command: "codex resume --all --no-alt-screen\r", description: "Resume the most recent Codex session" },
+  { agent: "codex", label: "Codex", command: "codex resume --all\r", description: "Resume the most recent Codex session" },
   { agent: "claude", label: "Claude", command: "claude --resume\r", description: "Choose a Claude session to resume" },
 ];
 const agentResumeButton = document.querySelector<HTMLButtonElement>("#agent-resume");
