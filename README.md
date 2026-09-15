@@ -209,6 +209,13 @@ typed into the shell for that SSH target, so you can re-run an earlier command
 such as `cd` with one tap. This history is tracked locally in the browser
 profile, keyed per target, and is never uploaded to the gateway.
 
+The `⋯` menu also carries a `⇞/⇟` paging toggle. In the default **Shell scroll**
+mode, PageUp/PageDown send tmux mouse-wheel events inside tmux (scrolling the
+tmux scrollback) and use local scrollback elsewhere. Switching to **TUI keys**
+makes PageUp/PageDown send real PageUp/PageDown keys inside tmux as well, so an
+alternate-screen TUI such as OpenCode or Codex can page through its own output.
+The choice is remembered per browser profile.
+
 ### Configuring O
 
 The O button is intentionally generic. Add an `extraAgent` object to the
