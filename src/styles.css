@@ -155,10 +155,11 @@ h1 { margin: 0; font-size: clamp(36px, 11vw, 48px); line-height: 1; letter-spaci
 .onboarding-tmux-head button { border: 0; padding: 3px 0 3px 8px; background: transparent; color: var(--muted); font-size: 10px; }
 .onboarding-tmux-head button:hover { color: var(--ink); }
 .onboarding-tmux-list { display: grid; gap: 6px; max-height: 156px; overflow-y: auto; }
-.onboarding-tmux-list > button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 42px; padding: 8px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); text-align: left; }
-.onboarding-tmux-list > button:hover { border-color: var(--ink); }
+.onboarding-tmux-list > button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 38px; padding: 6px 14px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: #fff; text-align: left; }
+.onboarding-tmux-list > button:hover { background: #333; }
 .onboarding-tmux-list code { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .onboarding-tmux-list small { flex: 0 0 auto; color: var(--muted); font-size: 10px; }
+.onboarding-tmux-list > button small { color: #bbb; }
 .onboarding-tmux-list > small { padding: 8px 2px; }
 .secondary { margin-top: 8px; border: 1px solid var(--ink); background: #fff; color: var(--ink); }
 .secondary:hover { background: var(--soft); }
