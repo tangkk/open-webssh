@@ -1675,6 +1675,7 @@ document.querySelector("#extra-agent")?.addEventListener("pointerdown", (event) 
 });
 const tmuxAttachButton = document.querySelector<HTMLButtonElement>("#tmux-attach");
 const tmuxSessionMenu = document.querySelector<HTMLElement>("#tmux-session-menu");
+let latestTmuxSessions: TmuxSession[] = [];
 function setTmuxSessionMenu(open: boolean) {
   if (!tmuxSessionMenu || !tmuxAttachButton) return;
   tmuxSessionMenu.hidden = !open;
@@ -1696,13 +1697,16 @@ function attachTmuxSession(sessionName: string) {
   setTmuxSessionMenu(false);
 }
 function createTmuxSession() {
-  const input = window.prompt("New tmux session name (leave blank to let tmux name it):", "");
+  const usedNames = new Set(latestTmuxSessions.map((session) => session.name));
+  let suggestedName = 1;
+  while (usedNames.has(String(suggestedName))) suggestedName += 1;
+  const input = window.prompt("New tmux session name:", String(suggestedName));
   if (input === null) return;
-  const name = input.trim();
+  const name = input.trim() || String(suggestedName);
   tmuxAttached = true;
   if (activeTab) activeTab.tmuxAttached = true;
   setActiveAgent("codex");
-  sendTerminalInput(name ? `tmux new-session -s ${shellQuote(name)}\r` : "tmux new-session\r");
+  sendTerminalInput(`tmux new-session -s ${shellQuote(name)}\r`);
   setTmuxSessionMenu(false);
 }
 function deleteTmuxSession(sessionName: string) {
@@ -1720,6 +1724,7 @@ function renderTmuxSessionMenu(sessions?: TmuxSession[], error?: string) {
   newSessionButton.type = "button";
   newSessionButton.dataset.tmuxNew = "true";
   newSessionButton.textContent = "+ New session";
+  newSessionButton.disabled = !sessions;
   if (!sessions) {
     const loading = document.createElement("button");
     loading.type = "button";
@@ -1729,6 +1734,7 @@ function renderTmuxSessionMenu(sessions?: TmuxSession[], error?: string) {
     setTmuxSessionMenu(true);
     return;
   }
+  latestTmuxSessions = sessions;
   const items: HTMLElement[] = sessions.map((session) => {
     const row = document.createElement("div");
     row.className = "tmux-session-row";
