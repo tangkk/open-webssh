@@ -46,6 +46,11 @@ The connection screen selects the target for the first terminal. The `＋`
 button selects a target for each additional tab. A tab keeps its own target for
 its full lifetime, so sessions to different hosts stay independent.
 
+For targets with tmux enabled, the connection screen also lists running tmux
+sessions after authenticating with the browser's device key. Select a session
+to connect directly to it, or use **Connect** to open an ordinary empty shell.
+The list can be refreshed without opening a terminal session.
+
 Targets are gateway-owned. Their real addresses, SSH users, ports, and pinned
 host keys live only in the private `TARGETS_FILE`; the browser receives only a
 short target ID, display label, and declared UI capabilities. Use capabilities

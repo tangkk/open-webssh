@@ -135,6 +135,13 @@ app.innerHTML = `
         <label class="target-picker-label" for="target-select">SSH target</label>
         <select class="target-select" id="target-select" disabled></select>
         <button class="primary" id="connect" disabled>Connect</button>
+        <section class="onboarding-tmux" id="onboarding-tmux" aria-labelledby="onboarding-tmux-title" hidden>
+          <div class="onboarding-tmux-head">
+            <span id="onboarding-tmux-title">TMUX SESSIONS</span>
+            <button id="refresh-onboarding-tmux" type="button">Refresh</button>
+          </div>
+          <div class="onboarding-tmux-list" id="onboarding-tmux-list"></div>
+        </section>
         <button class="secondary" id="copy-key" disabled>Copy public key to authorize this device</button>
         <p class="hint" id="hint">On first use, add this public key to the remote SSH account.</p>
       </section>
@@ -578,6 +585,9 @@ type TerminalTab = {
 const tabBar = document.querySelector<HTMLElement>("#tab-bar")!;
 const targetMenu = document.querySelector<HTMLElement>("#target-menu")!;
 const targetSelect = document.querySelector<HTMLSelectElement>("#target-select")!;
+const onboardingTmux = document.querySelector<HTMLElement>("#onboarding-tmux")!;
+const onboardingTmuxList = document.querySelector<HTMLElement>("#onboarding-tmux-list")!;
+const refreshOnboardingTmuxButton = document.querySelector<HTMLButtonElement>("#refresh-onboarding-tmux")!;
 const themeToggle = document.querySelector<HTMLButtonElement>("#theme-toggle")!;
 const themeMenu = document.querySelector<HTMLElement>("#theme-menu")!;
 const panels = document.querySelector<HTMLElement>("#terminal-wrap")!;
@@ -586,6 +596,8 @@ let activeTab: TerminalTab | undefined;
 let nextTabId = 1;
 let availableTargets: TargetDescriptor[] = [];
 let selectedTargetId = "";
+let onboardingSessionsSocket: WebSocket | undefined;
+let onboardingSessionsRequest = 0;
 
 function targetForId(id: string): TargetDescriptor | undefined {
   return availableTargets.find((target) => target.id === id);
@@ -1112,7 +1124,7 @@ function websocketUrl() {
   return `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`;
 }
 
-function connect() {
+function connect(tmuxSession?: string) {
   const tab = activeTab;
   if (!tab || (tab.socket && tab.socket.readyState <= WebSocket.OPEN)) return;
   const selectedTarget = targetForId(selectedTargetId);
@@ -1132,6 +1144,8 @@ function connect() {
   tab.socket = tabSocket;
   tab.connectionState = "connecting";
   tab.statusMessage = "Connecting…";
+  tab.tmuxAttached = Boolean(tmuxSession);
+  tmuxAttached = tab.tmuxAttached;
   socket = tabSocket;
 
   tabSocket.addEventListener("open", () => {
@@ -1143,6 +1157,7 @@ function connect() {
       fingerprint: identity.fingerprint,
       cols: tab.terminal.cols,
       rows: tab.terminal.rows,
+      tmuxSession,
     });
   });
 
@@ -1210,6 +1225,86 @@ function connect() {
 
   tabSocket.addEventListener("error", () => {
     if (activeTab === tab) setStatus("Unable to connect", "error");
+  });
+}
+
+function renderOnboardingTmuxSessions(sessions?: TmuxSession[], error?: string) {
+  const target = targetForId(selectedTargetId);
+  onboardingTmux.hidden = !target?.capabilities.tmux;
+  if (!target?.capabilities.tmux) {
+    onboardingTmuxList.replaceChildren();
+    return;
+  }
+  if (!sessions) {
+    const loading = document.createElement("small");
+    loading.textContent = "Loading sessions…";
+    onboardingTmuxList.replaceChildren(loading);
+    return;
+  }
+  if (error || sessions.length === 0) {
+    const empty = document.createElement("small");
+    empty.textContent = error || "No running tmux sessions";
+    onboardingTmuxList.replaceChildren(empty);
+    return;
+  }
+  onboardingTmuxList.replaceChildren(...sessions.map((session) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.onboardingTmuxSession = session.name;
+    const name = document.createElement("code");
+    name.textContent = session.name;
+    const detail = document.createElement("small");
+    detail.textContent = `${session.windows} window${session.windows === 1 ? "" : "s"}${session.attached ? " · attached" : ""}`;
+    button.append(name, detail);
+    return button;
+  }));
+}
+
+function loadOnboardingTmuxSessions() {
+  const target = targetForId(selectedTargetId);
+  onboardingSessionsRequest += 1;
+  const request = onboardingSessionsRequest;
+  onboardingSessionsSocket?.close();
+  onboardingSessionsSocket = undefined;
+  renderOnboardingTmuxSessions();
+  if (!target?.capabilities.tmux || !identity) return;
+  const discoverySocket = new WebSocket(websocketUrl());
+  onboardingSessionsSocket = discoverySocket;
+  discoverySocket.addEventListener("open", () => {
+    discoverySocket.send(JSON.stringify({
+      type: "hello",
+      mode: "tmux_sessions",
+      targetId: target.id,
+      keyBlob: bytesToBase64(identity.keyBlob),
+      fingerprint: identity.fingerprint,
+      cols: 80,
+      rows: 24,
+    }));
+  });
+  discoverySocket.addEventListener("message", async (event) => {
+    const message = JSON.parse(String(event.data)) as ServerMessage;
+    if (message.type === "sign_request") {
+      try {
+        const signature = await signAgentChallenge(identity, base64ToBytes(message.data));
+        if (discoverySocket.readyState === WebSocket.OPEN) discoverySocket.send(JSON.stringify({ type: "sign_response", id: message.id, signature }));
+      } catch (error) {
+        if (discoverySocket.readyState === WebSocket.OPEN) discoverySocket.send(JSON.stringify({ type: "sign_response", id: message.id, error: String(error) }));
+      }
+      return;
+    }
+    if (request !== onboardingSessionsRequest) return;
+    if (message.type === "tmux_sessions") {
+      renderOnboardingTmuxSessions(message.sessions, message.error);
+      discoverySocket.close();
+    } else if (message.type === "error") {
+      renderOnboardingTmuxSessions([], message.message);
+    }
+  });
+  discoverySocket.addEventListener("error", () => {
+    if (request === onboardingSessionsRequest) renderOnboardingTmuxSessions([], "Unable to load tmux sessions");
+  });
+  discoverySocket.addEventListener("close", () => {
+    if (onboardingSessionsSocket === discoverySocket) onboardingSessionsSocket = undefined;
   });
 }
 
@@ -1740,6 +1835,7 @@ document.querySelector("#exit-ssh")?.addEventListener("click", () => {
     commandBar.classList.remove("visible");
     tabBar.hidden = true;
     setStatus("SSH session exited");
+    loadOnboardingTmuxSessions();
     return;
   }
   if (closingIndex >= 0) tabs.splice(closingIndex, 1);
@@ -1766,6 +1862,7 @@ targetMenu.addEventListener("pointerdown", (event) => {
 });
 targetSelect.addEventListener("change", () => {
   selectedTargetId = targetSelect.value;
+  loadOnboardingTmuxSessions();
 });
 themeToggle.addEventListener("pointerdown", (event) => {
   event.preventDefault();
@@ -1788,7 +1885,12 @@ document.addEventListener("pointerdown", (event) => {
   if (targetMenu.hidden || targetMenu.contains(event.target as Node) || (event.target as HTMLElement).closest("#tab-add")) return;
   setTargetMenu(false);
 });
-connectButton.addEventListener("click", connect);
+connectButton.addEventListener("click", () => connect());
+refreshOnboardingTmuxButton.addEventListener("click", loadOnboardingTmuxSessions);
+onboardingTmuxList.addEventListener("click", (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-onboarding-tmux-session]");
+  if (button?.dataset.onboardingTmuxSession) connect(button.dataset.onboardingTmuxSession);
+});
 copyButton.addEventListener("click", () => void copyPublicKey());
 document.querySelector("#dialog-copy")?.addEventListener("click", () => void copyPublicKey());
 document.querySelector("#device-button")?.addEventListener("click", () => dialog.showModal());
@@ -1828,6 +1930,7 @@ Promise.all([getOrCreateIdentity(), loadAvailableTargets()])
     connectButton.disabled = false;
     copyButton.disabled = false;
     setStatus("Device key ready");
+    loadOnboardingTmuxSessions();
   })
   .catch((error) => {
     hint.textContent = error instanceof Error ? error.message : String(error);

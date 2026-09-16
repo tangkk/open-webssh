@@ -11,7 +11,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { BrowserAgent } from "./agent.js";
 
 type ClientMessage =
-  | { type: "hello"; targetId: string; keyBlob: string; fingerprint: string; cols: number; rows: number }
+  | { type: "hello"; targetId: string; keyBlob: string; fingerprint: string; cols: number; rows: number; mode?: "terminal" | "tmux_sessions"; tmuxSession?: string }
   | { type: "sign_response"; id: string; signature?: string; error?: string }
   | { type: "input"; data: string }
   | { type: "resize"; cols: number; rows: number }
@@ -282,8 +282,12 @@ function listTmuxSessions(agentSocket: string, target: Target, strictHostKeyArgs
       env: { ...process.env, SSH_AUTH_SOCK: agentSocket },
       timeout: 15_000,
       maxBuffer: 64 * 1024,
-    }, (error, stdout) => {
+    }, (error, stdout, stderr) => {
       if (error) {
+        if (/no server running|failed to connect to server/i.test(stderr)) {
+          resolve([]);
+          return;
+        }
         reject(error);
         return;
       }
@@ -376,6 +380,25 @@ websocketServer.on("connection", (websocket) => {
         agent = new BrowserAgent(websocket, keyBlob, clearAuthenticationTimer);
         await agent.listen(agentSocket);
         strictHostKeyArgs = ["-o", "StrictHostKeyChecking=yes", "-o", `UserKnownHostsFile=${target.knownHostsFile}`];
+        if (message.mode === "tmux_sessions") {
+          if (!target.capabilities?.tmux) {
+            send(websocket, { type: "tmux_sessions", sessions: [], error: "tmux is unavailable for this target" });
+            return;
+          }
+          try {
+            const sessions = await listTmuxSessions(agentSocket, target, strictHostKeyArgs);
+            send(websocket, { type: "tmux_sessions", sessions });
+          } catch {
+            send(websocket, { type: "tmux_sessions", sessions: [], error: "Unable to list tmux sessions" });
+          }
+          return;
+        }
+        if (message.tmuxSession !== undefined &&
+            (!target.capabilities?.tmux || message.tmuxSession.length === 0 || message.tmuxSession.length > 200 || message.tmuxSession.includes("\0"))) {
+          send(websocket, { type: "error", message: "Invalid tmux session" });
+          websocket.close(1008);
+          return;
+        }
         const args = [
           "-tt",
           "-p", String(target.port),
@@ -388,6 +411,9 @@ websocketServer.on("connection", (websocket) => {
           ...strictHostKeyArgs,
           `${target.user}@${target.host}`,
         ];
+        if (message.tmuxSession) {
+          args.push(`${shellQuote(target.tmuxBin || "tmux")} attach-session -t ${shellQuote(message.tmuxSession)}`);
+        }
         send(websocket, { type: "status", status: "connecting", message: "Verifying device signature…" });
         terminal = pty.spawn("ssh", args, {
           name: "xterm-256color",
