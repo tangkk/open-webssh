@@ -483,6 +483,7 @@ html.connected, html.connected body, html.connected #app,
 .slash-menu button:active { background: var(--terminal-accent-pressed); }
 .slash-menu code { color: var(--terminal-accent); }
 .slash-menu small { color: var(--terminal-muted); }
+.slash-menu .tmux-exit-command { color: #e4332a; }
 .tmux-session-row .tmux-session-delete { color: var(--terminal-muted); }
 
 .theme-menu {

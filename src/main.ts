@@ -1725,12 +1725,17 @@ function renderTmuxSessionMenu(sessions?: TmuxSession[], error?: string) {
   newSessionButton.dataset.tmuxNew = "true";
   newSessionButton.textContent = "+ New session";
   newSessionButton.disabled = !sessions;
+  const exitButton = document.createElement("button");
+  exitButton.type = "button";
+  exitButton.className = "tmux-exit-command";
+  exitButton.dataset.tmuxExit = "true";
+  exitButton.textContent = "Exit";
   if (!sessions) {
     const loading = document.createElement("button");
     loading.type = "button";
     loading.disabled = true;
     loading.textContent = "Loading sessions…";
-    tmuxSessionMenu.replaceChildren(heading, newSessionButton, loading);
+    tmuxSessionMenu.replaceChildren(heading, newSessionButton, exitButton, loading);
     setTmuxSessionMenu(true);
     return;
   }
@@ -1762,7 +1767,7 @@ function renderTmuxSessionMenu(sessions?: TmuxSession[], error?: string) {
     empty.textContent = error || "No tmux sessions found";
     items.push(empty);
   }
-  tmuxSessionMenu.replaceChildren(heading, newSessionButton, ...items);
+  tmuxSessionMenu.replaceChildren(heading, newSessionButton, exitButton, ...items);
   setTmuxSessionMenu(true);
 }
 tmuxAttachButton?.addEventListener("pointerdown", (event) => {
@@ -1773,6 +1778,14 @@ tmuxAttachButton?.addEventListener("pointerdown", (event) => {
   send({ type: "tmux_sessions" });
 });
 tmuxSessionMenu?.addEventListener("pointerdown", (event) => {
+  const exitItem = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-tmux-exit]");
+  if (exitItem) {
+    event.preventDefault();
+    event.stopPropagation();
+    sendTerminalInput("exit\r");
+    setTmuxSessionMenu(false);
+    return;
+  }
   const newItem = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-tmux-new]");
   if (newItem) {
     event.preventDefault();
