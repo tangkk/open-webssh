@@ -35,42 +35,60 @@ type ThemeDefinition = {
     selectionBackground: string;
     black: string;
     red: string;
+    green: string;
+    yellow: string;
+    blue: string;
+    magenta: string;
+    cyan: string;
+    white: string;
+    brightBlack: string;
     brightRed: string;
+    brightGreen: string;
+    brightYellow: string;
+    brightBlue: string;
+    brightMagenta: string;
+    brightCyan: string;
+    brightWhite: string;
     scrollbarSliderBackground: string;
     scrollbarSliderHoverBackground: string;
     scrollbarSliderActiveBackground: string;
   };
 };
 
+// Every ANSI slot below is set intentionally: TUIs that can't confirm truecolor
+// support (e.g. codex over SSH, since COLORTERM never survives the SSH hop) fall
+// back to drawing chrome with these 16 colors. Leaving any of them unset lets
+// xterm.js's dark-terminal defaults leak in, which collide with light themes
+// (near-white "white"/"brightWhite") or with dark themes (near-black fills).
 const THEME_STORAGE_KEY = "webssh.theme.v1";
 const themes: Record<ThemeName, ThemeDefinition> = {
   signal: {
     name: "signal", label: "Signal", preview: ["#0b0d0c", "#33d17a", "#e4332a"],
-    xterm: { background: "#0b0d0c", foreground: "#e8e8e8", cursor: "#e4332a", selectionBackground: "#343434", black: "#141715", red: "#e4332a", brightRed: "#ff625a", scrollbarSliderBackground: "rgba(232, 232, 232, 0.3)", scrollbarSliderHoverBackground: "rgba(232, 232, 232, 0.45)", scrollbarSliderActiveBackground: "rgba(51, 209, 122, 0.55)" },
+    xterm: { background: "#0b0d0c", foreground: "#e8e8e8", cursor: "#e4332a", selectionBackground: "#343434", black: "#141715", red: "#e4332a", green: "#33d17a", yellow: "#e2c079", blue: "#5aa9e6", magenta: "#c98bdb", cyan: "#4fc1c9", white: "#cfd2d1", brightBlack: "#4b524e", brightRed: "#ff625a", brightGreen: "#6bffa8", brightYellow: "#f5d68f", brightBlue: "#8cc9ff", brightMagenta: "#e0abf0", brightCyan: "#7fe0e6", brightWhite: "#ffffff", scrollbarSliderBackground: "rgba(232, 232, 232, 0.3)", scrollbarSliderHoverBackground: "rgba(232, 232, 232, 0.45)", scrollbarSliderActiveBackground: "rgba(51, 209, 122, 0.55)" },
   },
   "tokyo-night": {
     name: "tokyo-night", label: "Tokyo Night", preview: ["#1a1b26", "#7aa2f7", "#bb9af7"],
-    xterm: { background: "#1a1b26", foreground: "#c0caf5", cursor: "#7aa2f7", selectionBackground: "#33467c", black: "#15161e", red: "#f7768e", brightRed: "#ff9eae", scrollbarSliderBackground: "rgba(192, 202, 245, 0.3)", scrollbarSliderHoverBackground: "rgba(192, 202, 245, 0.48)", scrollbarSliderActiveBackground: "rgba(122, 162, 247, 0.66)" },
+    xterm: { background: "#1a1b26", foreground: "#c0caf5", cursor: "#7aa2f7", selectionBackground: "#33467c", black: "#15161e", red: "#f7768e", green: "#9ece6a", yellow: "#e0af68", blue: "#7aa2f7", magenta: "#bb9af7", cyan: "#7dcfff", white: "#a9b1d6", brightBlack: "#414868", brightRed: "#ff9eae", brightGreen: "#9ece6a", brightYellow: "#e0af68", brightBlue: "#7aa2f7", brightMagenta: "#bb9af7", brightCyan: "#7dcfff", brightWhite: "#c0caf5", scrollbarSliderBackground: "rgba(192, 202, 245, 0.3)", scrollbarSliderHoverBackground: "rgba(192, 202, 245, 0.48)", scrollbarSliderActiveBackground: "rgba(122, 162, 247, 0.66)" },
   },
   "catppuccin-mocha": {
     name: "catppuccin-mocha", label: "Catppuccin Mocha", preview: ["#1e1e2e", "#cba6f7", "#f5c2e7"],
-    xterm: { background: "#1e1e2e", foreground: "#cdd6f4", cursor: "#f5c2e7", selectionBackground: "#45475a", black: "#181825", red: "#f38ba8", brightRed: "#f5a0b8", scrollbarSliderBackground: "rgba(205, 214, 244, 0.3)", scrollbarSliderHoverBackground: "rgba(205, 214, 244, 0.48)", scrollbarSliderActiveBackground: "rgba(203, 166, 247, 0.68)" },
+    xterm: { background: "#1e1e2e", foreground: "#cdd6f4", cursor: "#f5c2e7", selectionBackground: "#45475a", black: "#181825", red: "#f38ba8", green: "#a6e3a1", yellow: "#f9e2af", blue: "#89b4fa", magenta: "#f5c2e7", cyan: "#94e2d5", white: "#bac2de", brightBlack: "#585b70", brightRed: "#f5a0b8", brightGreen: "#a6e3a1", brightYellow: "#f9e2af", brightBlue: "#89b4fa", brightMagenta: "#f5c2e7", brightCyan: "#94e2d5", brightWhite: "#a6adc8", scrollbarSliderBackground: "rgba(205, 214, 244, 0.3)", scrollbarSliderHoverBackground: "rgba(205, 214, 244, 0.48)", scrollbarSliderActiveBackground: "rgba(203, 166, 247, 0.68)" },
   },
   "gruvbox-dark": {
     name: "gruvbox-dark", label: "Gruvbox Dark", preview: ["#282828", "#fabd2f", "#b8bb26"],
-    xterm: { background: "#282828", foreground: "#ebdbb2", cursor: "#fabd2f", selectionBackground: "#504945", black: "#1d2021", red: "#fb4934", brightRed: "#ff6b55", scrollbarSliderBackground: "rgba(235, 219, 178, 0.3)", scrollbarSliderHoverBackground: "rgba(235, 219, 178, 0.48)", scrollbarSliderActiveBackground: "rgba(250, 189, 47, 0.68)" },
+    xterm: { background: "#282828", foreground: "#ebdbb2", cursor: "#fabd2f", selectionBackground: "#504945", black: "#1d2021", red: "#fb4934", green: "#98971a", yellow: "#d79921", blue: "#458588", magenta: "#b16286", cyan: "#689d6a", white: "#a89984", brightBlack: "#928374", brightRed: "#ff6b55", brightGreen: "#b8bb26", brightYellow: "#fabd2f", brightBlue: "#83a598", brightMagenta: "#d3869b", brightCyan: "#8ec07c", brightWhite: "#ebdbb2", scrollbarSliderBackground: "rgba(235, 219, 178, 0.3)", scrollbarSliderHoverBackground: "rgba(235, 219, 178, 0.48)", scrollbarSliderActiveBackground: "rgba(250, 189, 47, 0.68)" },
   },
   "github-light": {
     name: "github-light", label: "GitHub Light", preview: ["#ffffff", "#0969da", "#cf222e"],
-    xterm: { background: "#ffffff", foreground: "#24292f", cursor: "#0969da", selectionBackground: "#b6e3ff", black: "#24292f", red: "#cf222e", brightRed: "#a40e26", scrollbarSliderBackground: "rgba(36, 41, 47, 0.24)", scrollbarSliderHoverBackground: "rgba(36, 41, 47, 0.38)", scrollbarSliderActiveBackground: "rgba(9, 105, 218, 0.62)" },
+    xterm: { background: "#ffffff", foreground: "#24292f", cursor: "#0969da", selectionBackground: "#b6e3ff", black: "#24292f", red: "#cf222e", green: "#1a7f37", yellow: "#9a6700", blue: "#0969da", magenta: "#8250df", cyan: "#1b7c83", white: "#d0d7de", brightBlack: "#57606a", brightRed: "#a40e26", brightGreen: "#2da44e", brightYellow: "#bf8700", brightBlue: "#218bff", brightMagenta: "#a475f9", brightCyan: "#3192aa", brightWhite: "#f6f8fa", scrollbarSliderBackground: "rgba(36, 41, 47, 0.24)", scrollbarSliderHoverBackground: "rgba(36, 41, 47, 0.38)", scrollbarSliderActiveBackground: "rgba(9, 105, 218, 0.62)" },
   },
   "catppuccin-latte": {
     name: "catppuccin-latte", label: "Catppuccin Latte", preview: ["#eff1f5", "#8839ef", "#dc8a78"],
-    xterm: { background: "#eff1f5", foreground: "#4c4f69", cursor: "#dc8a78", selectionBackground: "#ccd0da", black: "#5c5f77", red: "#d20f39", brightRed: "#e64553", scrollbarSliderBackground: "rgba(76, 79, 105, 0.24)", scrollbarSliderHoverBackground: "rgba(76, 79, 105, 0.38)", scrollbarSliderActiveBackground: "rgba(136, 57, 239, 0.58)" },
+    xterm: { background: "#eff1f5", foreground: "#4c4f69", cursor: "#dc8a78", selectionBackground: "#ccd0da", black: "#5c5f77", red: "#d20f39", green: "#40a02b", yellow: "#df8e1d", blue: "#1e66f5", magenta: "#ea76cb", cyan: "#179299", white: "#acb0be", brightBlack: "#6c6f85", brightRed: "#e64553", brightGreen: "#40a02b", brightYellow: "#df8e1d", brightBlue: "#1e66f5", brightMagenta: "#ea76cb", brightCyan: "#179299", brightWhite: "#bcc0cc", scrollbarSliderBackground: "rgba(76, 79, 105, 0.24)", scrollbarSliderHoverBackground: "rgba(76, 79, 105, 0.38)", scrollbarSliderActiveBackground: "rgba(136, 57, 239, 0.58)" },
   },
   "gruvbox-light": {
     name: "gruvbox-light", label: "Gruvbox Light", preview: ["#fbf1c7", "#d65d0e", "#98971a"],
-    xterm: { background: "#fbf1c7", foreground: "#3c3836", cursor: "#d65d0e", selectionBackground: "#d5c4a1", black: "#3c3836", red: "#cc241d", brightRed: "#9d0006", scrollbarSliderBackground: "rgba(60, 56, 54, 0.24)", scrollbarSliderHoverBackground: "rgba(60, 56, 54, 0.38)", scrollbarSliderActiveBackground: "rgba(214, 93, 14, 0.58)" },
+    xterm: { background: "#fbf1c7", foreground: "#3c3836", cursor: "#d65d0e", selectionBackground: "#d5c4a1", black: "#3c3836", red: "#cc241d", green: "#98971a", yellow: "#d79921", blue: "#458588", magenta: "#b16286", cyan: "#689d6a", white: "#7c6f64", brightBlack: "#928374", brightRed: "#9d0006", brightGreen: "#79740e", brightYellow: "#b57614", brightBlue: "#076678", brightMagenta: "#8f3f71", brightCyan: "#427b58", brightWhite: "#3c3836", scrollbarSliderBackground: "rgba(60, 56, 54, 0.24)", scrollbarSliderHoverBackground: "rgba(60, 56, 54, 0.38)", scrollbarSliderActiveBackground: "rgba(214, 93, 14, 0.58)" },
   },
 };
 
@@ -1484,21 +1502,43 @@ function attachTmuxSession(sessionName: string) {
   sendTerminalInput(`tmux attach-session -t ${shellQuote(sessionName)}\r`);
   setTmuxSessionMenu(false);
 }
+function createTmuxSession() {
+  const input = window.prompt("New tmux session name (leave blank to let tmux name it):", "");
+  if (input === null) return;
+  const name = input.trim();
+  tmuxAttached = true;
+  if (activeTab) activeTab.tmuxAttached = true;
+  setActiveAgent("codex");
+  sendTerminalInput(name ? `tmux new-session -s ${shellQuote(name)}\r` : "tmux new-session\r");
+  setTmuxSessionMenu(false);
+}
+function deleteTmuxSession(sessionName: string) {
+  if (!window.confirm(`Kill tmux session "${sessionName}"? This ends everything running in it.`)) return;
+  sendTerminalInput(`tmux kill-session -t ${shellQuote(sessionName)}\r`);
+  renderTmuxSessionMenu();
+  window.setTimeout(() => send({ type: "tmux_sessions" }), 400);
+}
 function renderTmuxSessionMenu(sessions?: TmuxSession[], error?: string) {
   if (!tmuxSessionMenu) return;
   const heading = document.createElement("div");
   heading.className = "slash-menu-heading";
   heading.textContent = "Tmux Sessions";
+  const newSessionButton = document.createElement("button");
+  newSessionButton.type = "button";
+  newSessionButton.dataset.tmuxNew = "true";
+  newSessionButton.textContent = "+ New session";
   if (!sessions) {
     const loading = document.createElement("button");
     loading.type = "button";
     loading.disabled = true;
     loading.textContent = "Loading sessions…";
-    tmuxSessionMenu.replaceChildren(heading, loading);
+    tmuxSessionMenu.replaceChildren(heading, newSessionButton, loading);
     setTmuxSessionMenu(true);
     return;
   }
-  const items = sessions.map((session) => {
+  const items: HTMLElement[] = sessions.map((session) => {
+    const row = document.createElement("div");
+    row.className = "tmux-session-row";
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.tmuxSession = session.name;
@@ -1507,7 +1547,14 @@ function renderTmuxSessionMenu(sessions?: TmuxSession[], error?: string) {
     const detail = document.createElement("small");
     detail.textContent = `${session.windows} window${session.windows === 1 ? "" : "s"}${session.attached ? " · attached" : ""}`;
     button.append(name, detail);
-    return button;
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "tmux-session-delete";
+    deleteButton.dataset.tmuxDelete = session.name;
+    deleteButton.setAttribute("aria-label", `Delete session ${session.name}`);
+    deleteButton.textContent = "✕";
+    row.append(button, deleteButton);
+    return row;
   });
   if (items.length === 0) {
     const empty = document.createElement("button");
@@ -1516,7 +1563,7 @@ function renderTmuxSessionMenu(sessions?: TmuxSession[], error?: string) {
     empty.textContent = error || "No tmux sessions found";
     items.push(empty);
   }
-  tmuxSessionMenu.replaceChildren(heading, ...items);
+  tmuxSessionMenu.replaceChildren(heading, newSessionButton, ...items);
   setTmuxSessionMenu(true);
 }
 tmuxAttachButton?.addEventListener("pointerdown", (event) => {
@@ -1527,6 +1574,20 @@ tmuxAttachButton?.addEventListener("pointerdown", (event) => {
   send({ type: "tmux_sessions" });
 });
 tmuxSessionMenu?.addEventListener("pointerdown", (event) => {
+  const newItem = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-tmux-new]");
+  if (newItem) {
+    event.preventDefault();
+    event.stopPropagation();
+    createTmuxSession();
+    return;
+  }
+  const deleteItem = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-tmux-delete]");
+  if (deleteItem?.dataset.tmuxDelete) {
+    event.preventDefault();
+    event.stopPropagation();
+    deleteTmuxSession(deleteItem.dataset.tmuxDelete);
+    return;
+  }
   const item = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-tmux-session]");
   if (!item?.dataset.tmuxSession) return;
   event.preventDefault();

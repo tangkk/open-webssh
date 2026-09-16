@@ -279,6 +279,23 @@ html.keyboard-requested .command-bar.visible { display: none; }
 .slash-menu code.history-command { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .slash-menu small { color: rgba(232, 232, 232, .68); font-size: 11px; }
 
+.tmux-session-row { display: flex; align-items: stretch; gap: 4px; }
+.tmux-session-row button[data-tmux-session] { flex: 1 1 auto; width: auto; min-width: 0; }
+.tmux-session-row .tmux-session-delete {
+  flex: 0 0 30px;
+  width: 30px;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(232, 232, 232, .45);
+  font-size: 15px;
+}
+.tmux-session-row .tmux-session-delete:active { background: rgba(228, 51, 42, .18); color: #e4332a; }
+
 dialog {
   width: min(92vw, 480px);
   padding: 0;
@@ -450,6 +467,7 @@ html.connected, html.connected body, html.connected #app,
 .slash-menu button:active { background: var(--terminal-accent-pressed); }
 .slash-menu code { color: var(--terminal-accent); }
 .slash-menu small { color: var(--terminal-muted); }
+.tmux-session-row .tmux-session-delete { color: var(--terminal-muted); }
 
 .theme-menu {
   position: absolute;

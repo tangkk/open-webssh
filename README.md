@@ -177,7 +177,7 @@ are intentionally sent only after a deliberate button press.
 | `C` | Expand a menu to resume Codex (`codex resume --all --no-alt-screen`) or Claude (`claude --resume`) |
 | `H` | Start Hermes and open its session picker |
 | `O` | Start the target's optional configured agent; its label and command are private target configuration |
-| `T` | List and attach to a tmux session; its command menu defaults to Codex |
+| `T` | List and attach to a tmux session, create a new one, or delete an existing one; its command menu defaults to Codex |
 | `⋯` | In the shell, open the recent command history for this target; after selecting C, H, or O, open that agent's slash-command menu; also toggles the ⇞/⇟ paging mode |
 | `⧉` | Copy the selected terminal text |
 | `⎘` | Paste clipboard text into the terminal |
