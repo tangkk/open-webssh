@@ -394,7 +394,7 @@ websocketServer.on("connection", (websocket) => {
           cols: safeSize(message.cols, 80, 300),
           rows: safeSize(message.rows, 24, 120),
           cwd: process.cwd(),
-          env: { ...process.env, SSH_AUTH_SOCK: agentSocket, TERM: "xterm-256color" },
+          env: { ...process.env, SSH_AUTH_SOCK: agentSocket, TERM: "xterm-256color", COLORTERM: "truecolor" },
         });
         terminal.onData((data) => send(websocket, { type: "output", data: Buffer.from(data, "utf8").toString("base64") }));
         terminal.onExit(({ exitCode }) => {
