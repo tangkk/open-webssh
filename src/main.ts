@@ -694,20 +694,16 @@ function supports(tab: TerminalTab | undefined, capability: keyof TargetCapabili
 function updateTargetControls() {
   const tmuxButton = document.querySelector<HTMLButtonElement>("#tmux-attach");
   const extraAgentButton = document.querySelector<HTMLButtonElement>("#extra-agent");
-  const agentsAvailable = supports(activeTab, "agents");
   const tmuxAvailable = supports(activeTab, "tmux");
-  const extraAgent = activeTab?.target.extraAgent;
   document.querySelectorAll<HTMLButtonElement>(".agent-key").forEach((button) => {
     if (button === tmuxButton) button.disabled = !tmuxAvailable;
-    else if (button === extraAgentButton) button.disabled = !agentsAvailable || !extraAgent;
-    else if (button === agentCommandsButton) button.disabled = false;
-    else button.disabled = !agentsAvailable;
+    else button.disabled = false;
   });
   if (tmuxButton) tmuxButton.title = tmuxAvailable ? "tmux sessions" : "tmux is unavailable for this target";
   if (extraAgentButton) {
-    extraAgentButton.textContent = extraAgent?.buttonLabel || "O";
-    extraAgentButton.title = extraAgent ? `Start ${extraAgent.label}` : "No configured agent";
-    extraAgentButton.setAttribute("aria-label", extraAgent ? `Start ${extraAgent.label}` : "No configured agent");
+    extraAgentButton.textContent = "O";
+    extraAgentButton.title = "OpenCode commands";
+    extraAgentButton.setAttribute("aria-label", "Open OpenCode commands");
   }
 }
 
