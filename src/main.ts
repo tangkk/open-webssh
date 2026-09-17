@@ -1521,7 +1521,7 @@ const commonSlashCommands: AgentCommand[] = [
   { command: "/side", description: "Start a side chat without interrupting the main chat" },
   { command: "/btw", description: "Ask a side question outside the conversation" },
   { command: "/help", description: "Show available commands" },
-  { command: "R", description: "Continue the session here", input: "r" },
+  { command: "exit", description: "Exit the current tmux shell", input: "exit\r" },
 ];
 const agentCommandsButton = document.querySelector<HTMLButtonElement>("#agent-commands");
 const agentCommandMenu = document.querySelector<HTMLElement>("#agent-command-menu");
