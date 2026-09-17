@@ -535,6 +535,7 @@ html.connected, html.connected body, html.connected #app,
 .target-menu-tmux button { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; padding: 5px 7px; color: var(--terminal-accent); }
 .target-menu-tmux button code { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .target-menu-tmux button small { flex: 0 0 auto; color: var(--terminal-muted); font-size: 9px; }
+.target-menu-tmux .target-menu-tmux-new { color: var(--terminal-accent); }
 .theme-menu button {
   width: 100%;
   min-height: 38px;

@@ -46,8 +46,9 @@ The connection screen selects the target for the first terminal. The `＋`
 button selects a target for each additional tab. A tab keeps its own target for
 its full lifetime, so sessions to different hosts stay independent.
 The `＋` menu also shows each target's running tmux sessions as nested entries:
-select the target row for a new shell, or select a session to open a tab attached
-directly to it.
+select the target row for a new shell, select a session to open a tab attached
+directly to it, or choose **New tmux session** to create and open a fresh tmux
+tab in one step.
 
 For targets with tmux enabled, the connection screen also lists running tmux
 sessions after authenticating with the browser's device key. Select a session

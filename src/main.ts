@@ -564,6 +564,7 @@ const commandBar = document.querySelector<HTMLElement>("#command-bar")!;
 let identity: DeviceIdentity;
 let socket: WebSocket | undefined;
 let shouldReconnect = false;
+let hiddenSince: number | undefined;
 let tmuxAttached = false;
 type AgentKind = "shell" | "codex" | "hermes" | "claude" | "extra";
 type TerminalTab = {
@@ -576,6 +577,7 @@ type TerminalTab = {
   socket?: WebSocket;
   tmuxAttached: boolean;
   tmuxSession?: string;
+  tmuxNewSession?: boolean;
   agent: AgentKind;
   connectionState: "idle" | "connecting" | "connected" | "closed";
   statusMessage?: string;
@@ -886,7 +888,7 @@ function activateTab(tab: TerminalTab, connectIfNeeded = true) {
   if (!isMobileDevice) terminal.focus();
 }
 
-function createAdditionalTab(target: TargetDescriptor, tmuxSession?: string) {
+function createAdditionalTab(target: TargetDescriptor, tmuxSession?: string, tmuxNewSession = false) {
   const host = document.createElement("div");
   host.className = "terminal-panel";
   host.hidden = true;
@@ -894,7 +896,7 @@ function createAdditionalTab(target: TargetDescriptor, tmuxSession?: string) {
   const nextTerminal = new Terminal({ cursorBlink: true, cursorStyle: "bar", fontFamily: '"SFMono-Regular", "SF Mono", Menlo, monospace', fontSize: 12, lineHeight: 1.18, scrollback: 4000, disableStdin: false, theme: themes[activeTheme].xterm });
   const nextFit = new FitAddon(); nextTerminal.loadAddon(nextFit); nextTerminal.open(host);
   const ordinal = nextTabId++;
-  const tab: TerminalTab = { id: ordinal, name: tmuxSession ? `${target.label} · ${tmuxSession}` : tabName(target, ordinal), target, host, terminal: nextTerminal, fit: nextFit, tmuxAttached: Boolean(tmuxSession), tmuxSession, agent: "shell", connectionState: "idle", outputQueue: [] };
+  const tab: TerminalTab = { id: ordinal, name: tmuxSession ? `${target.label} · ${tmuxSession}` : tabName(target, ordinal), target, host, terminal: nextTerminal, fit: nextFit, tmuxAttached: Boolean(tmuxSession), tmuxSession, tmuxNewSession, agent: "shell", connectionState: "idle", outputQueue: [] };
   tabs.push(tab);
   savePersistedTabs();
   bindTerminalBehavior(tab);
@@ -909,7 +911,7 @@ function connectTab(tab: TerminalTab) {
   tab.connectionState = "connecting";
   tab.statusMessage = "Connecting…";
   if (activeTab === tab) setStatus(tab.statusMessage, "working");
-  tabSocket.addEventListener("open", () => { tab.socket = tabSocket; if (activeTab === tab) socket = tabSocket; sendToTab(tab, { type: "hello", targetId: tab.target.id, keyBlob: bytesToBase64(identity.keyBlob), publicKey: identity.authorizedKey, fingerprint: identity.fingerprint, cols: tab.terminal.cols, rows: tab.terminal.rows, tmuxSession: tab.tmuxSession }); });
+  tabSocket.addEventListener("open", () => { tab.socket = tabSocket; if (activeTab === tab) socket = tabSocket; sendToTab(tab, { type: "hello", targetId: tab.target.id, keyBlob: bytesToBase64(identity.keyBlob), publicKey: identity.authorizedKey, fingerprint: identity.fingerprint, cols: tab.terminal.cols, rows: tab.terminal.rows, tmuxSession: tab.tmuxSession, tmuxNewSession: tab.tmuxNewSession }); });
   tabSocket.addEventListener("message", async (event) => {
     const message = JSON.parse(String(event.data)) as ServerMessage;
     if (message.type === "sign_request") {
@@ -1247,6 +1249,7 @@ function connect(tmuxSession?: string) {
       tab.connectionState = message.status;
       tab.statusMessage = message.message || (message.status === "connected" ? "Connected" : message.status === "connecting" ? "Authenticating SSH…" : "Connection closed");
       if (message.status === "connected") {
+        tab.tmuxNewSession = false;
         savePersistedTabs();
         onboarding.hidden = true;
         document.querySelector(".shell")?.classList.add("connected");
@@ -1385,13 +1388,22 @@ function renderTargetMenuTmuxSessions(target: TargetDescriptor, sessions: TmuxSe
   const list = Array.from(targetMenu.querySelectorAll<HTMLElement>("[data-target-tmux-list]"))
     .find((candidate) => candidate.dataset.targetTmuxList === target.id);
   if (!list) return;
+  const nextName = nextAvailableTmuxSessionName(sessions);
+  const newButton = document.createElement("button");
+  newButton.type = "button";
+  newButton.className = "target-menu-tmux-new";
+  newButton.dataset.targetTmuxTarget = target.id;
+  newButton.dataset.targetTmuxNew = nextName;
+  newButton.textContent = `+ New tmux session (${nextName})`;
+  const items: HTMLElement[] = [newButton];
   if (error || sessions.length === 0) {
     const status = document.createElement("small");
     status.textContent = error || "No running sessions";
-    list.replaceChildren(status);
+    items.push(status);
+    list.replaceChildren(...items);
     return;
   }
-  list.replaceChildren(...sessions.map((session) => {
+  items.push(...sessions.map((session) => {
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.targetTmuxTarget = target.id;
@@ -1403,6 +1415,7 @@ function renderTargetMenuTmuxSessions(target: TargetDescriptor, sessions: TmuxSe
     button.append(name, detail);
     return button;
   }));
+  list.replaceChildren(...items);
 }
 
 function loadTargetMenuTmuxSessions() {
@@ -1445,7 +1458,16 @@ function loadTargetMenuTmuxSessions() {
 window.addEventListener("resize", () => { updateVisualViewport(true); });
 window.visualViewport?.addEventListener("resize", () => { updateVisualViewport(true); });
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && shouldReconnect && !socket) connect();
+  if (document.visibilityState === "hidden") {
+    hiddenSince = Date.now();
+    return;
+  }
+  const backgroundDuration = hiddenSince === undefined ? 0 : Date.now() - hiddenSince;
+  hiddenSince = undefined;
+  if (backgroundDuration >= 30_000 && !onboarding.hidden && tabs.some((tab) => tab.socket)) {
+    tabs.forEach((tab) => tab.socket?.close(1000, "page resumed after background suspension"));
+  }
+  if (shouldReconnect && !socket) connect();
   if (document.visibilityState === "visible") updateVisualViewport();
 });
 document.querySelector("#ctrl-c")?.addEventListener("pointerdown", (event) => {
@@ -1682,6 +1704,12 @@ function setTmuxSessionMenu(open: boolean) {
 function shellQuote(value: string) {
   return `'${value.replaceAll("'", "'\\\"'\\\"'")}'`;
 }
+function nextAvailableTmuxSessionName(sessions: TmuxSession[]) {
+  const usedNames = new Set(sessions.map((session) => session.name));
+  let suggestedName = 1;
+  while (usedNames.has(String(suggestedName))) suggestedName += 1;
+  return String(suggestedName);
+}
 function attachTmuxSession(sessionName: string) {
   tmuxAttached = true;
   if (activeTab) {
@@ -1696,10 +1724,8 @@ function attachTmuxSession(sessionName: string) {
   setTmuxSessionMenu(false);
 }
 function createTmuxSession() {
-  const usedNames = new Set(latestTmuxSessions.map((session) => session.name));
-  let suggestedName = 1;
-  while (usedNames.has(String(suggestedName))) suggestedName += 1;
-  const input = window.prompt("New tmux session name:", String(suggestedName));
+  const suggestedName = nextAvailableTmuxSessionName(latestTmuxSessions);
+  const input = window.prompt("New tmux session name:", suggestedName);
   if (input === null) return;
   const name = input.trim() || String(suggestedName);
   tmuxAttached = true;
@@ -1970,6 +1996,16 @@ document.querySelector("#tab-add")?.addEventListener("pointerdown", (event) => {
   setTargetMenu(targetMenu.hidden);
 });
 targetMenu.addEventListener("pointerdown", (event) => {
+  const tmuxNewChoice = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-target-tmux-new]");
+  if (tmuxNewChoice?.dataset.targetTmuxTarget && tmuxNewChoice.dataset.targetTmuxNew) {
+    const target = targetForId(tmuxNewChoice.dataset.targetTmuxTarget);
+    if (!target) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setTargetMenu(false);
+    createAdditionalTab(target, tmuxNewChoice.dataset.targetTmuxNew, true);
+    return;
+  }
   const tmuxChoice = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-target-tmux-session]");
   if (tmuxChoice?.dataset.targetTmuxTarget && tmuxChoice.dataset.targetTmuxSession) {
     const target = targetForId(tmuxChoice.dataset.targetTmuxTarget);

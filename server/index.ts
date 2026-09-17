@@ -11,7 +11,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { BrowserAgent } from "./agent.js";
 
 type ClientMessage =
-  | { type: "hello"; targetId: string; keyBlob: string; fingerprint: string; cols: number; rows: number; mode?: "terminal" | "tmux_sessions"; tmuxSession?: string }
+  | { type: "hello"; targetId: string; keyBlob: string; fingerprint: string; cols: number; rows: number; mode?: "terminal" | "tmux_sessions"; tmuxSession?: string; tmuxNewSession?: boolean }
   | { type: "sign_response"; id: string; signature?: string; error?: string }
   | { type: "input"; data: string }
   | { type: "resize"; cols: number; rows: number }
@@ -412,7 +412,8 @@ websocketServer.on("connection", (websocket) => {
           `${target.user}@${target.host}`,
         ];
         if (message.tmuxSession) {
-          args.push(`${shellQuote(target.tmuxBin || "tmux")} attach-session -t ${shellQuote(message.tmuxSession)}`);
+          const tmuxAction = message.tmuxNewSession ? "new-session" : "attach-session";
+          args.push(`${shellQuote(target.tmuxBin || "tmux")} ${tmuxAction} -s ${shellQuote(message.tmuxSession)}`);
         }
         send(websocket, { type: "status", status: "connecting", message: "Verifying device signature…" });
         terminal = pty.spawn("ssh", args, {
