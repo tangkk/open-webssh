@@ -135,6 +135,7 @@ app.innerHTML = `
         <label class="target-picker-label" for="target-select">SSH target</label>
         <select class="target-select" id="target-select" disabled></select>
         <button class="primary" id="connect" disabled>Connect</button>
+        <button class="secondary restore-button" id="restore-tabs" type="button" hidden>Restore last connections</button>
         <section class="onboarding-tmux" id="onboarding-tmux" aria-labelledby="onboarding-tmux-title" hidden>
           <div class="onboarding-tmux-head">
             <span id="onboarding-tmux-title">TMUX SESSIONS</span>
@@ -587,6 +588,7 @@ const targetSelect = document.querySelector<HTMLSelectElement>("#target-select")
 const onboardingTmux = document.querySelector<HTMLElement>("#onboarding-tmux")!;
 const onboardingTmuxList = document.querySelector<HTMLElement>("#onboarding-tmux-list")!;
 const refreshOnboardingTmuxButton = document.querySelector<HTMLButtonElement>("#refresh-onboarding-tmux")!;
+const restoreTabsButton = document.querySelector<HTMLButtonElement>("#restore-tabs")!;
 const themeToggle = document.querySelector<HTMLButtonElement>("#theme-toggle")!;
 const themeMenu = document.querySelector<HTMLElement>("#theme-menu")!;
 const panels = document.querySelector<HTMLElement>("#terminal-wrap")!;
@@ -599,6 +601,47 @@ let onboardingSessionsSocket: WebSocket | undefined;
 let onboardingSessionsRequest = 0;
 let targetMenuSessionsRequest = 0;
 const targetMenuSessionSockets = new Set<WebSocket>();
+const OPEN_TABS_STORAGE_KEY = "webssh.open-tabs.v1";
+type PersistedTab = { targetId: string; tmuxSession?: string };
+
+function readPersistedTabs(): PersistedTab[] {
+  try {
+    const raw = localStorage.getItem(OPEN_TABS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry): entry is PersistedTab => Boolean(
+      entry && typeof entry === "object" && typeof entry.targetId === "string" && entry.targetId.length > 0 &&
+      (entry.tmuxSession === undefined || typeof entry.tmuxSession === "string"),
+    ));
+  } catch {
+    return [];
+  }
+}
+
+function savePersistedTabs() {
+  const entries: PersistedTab[] = tabs
+    .filter((tab) => tab.target.id)
+    .map((tab) => ({ targetId: tab.target.id, ...(tab.tmuxSession ? { tmuxSession: tab.tmuxSession } : {}) }));
+  try {
+    if (entries.length > 0) localStorage.setItem(OPEN_TABS_STORAGE_KEY, JSON.stringify(entries));
+    else localStorage.removeItem(OPEN_TABS_STORAGE_KEY);
+  } catch {
+    // Storage may be unavailable; active tabs still work for this page lifetime.
+  }
+}
+
+function clearPersistedTabs() {
+  try {
+    localStorage.removeItem(OPEN_TABS_STORAGE_KEY);
+  } catch {
+    // Storage may be unavailable.
+  }
+}
+
+function updateRestoreButton() {
+  const entries = readPersistedTabs().filter((entry) => targetForId(entry.targetId));
+  restoreTabsButton.hidden = entries.length === 0;
+}
 
 function targetForId(id: string): TargetDescriptor | undefined {
   return availableTargets.find((target) => target.id === id);
@@ -819,6 +862,7 @@ function createAdditionalTab(target: TargetDescriptor, tmuxSession?: string) {
   const ordinal = nextTabId++;
   const tab: TerminalTab = { id: ordinal, name: tmuxSession ? `${target.label} · ${tmuxSession}` : tabName(target, ordinal), target, host, terminal: nextTerminal, fit: nextFit, tmuxAttached: Boolean(tmuxSession), tmuxSession, agent: "shell", connectionState: "idle", outputQueue: [] };
   tabs.push(tab);
+  savePersistedTabs();
   bindTerminalBehavior(tab);
   activateTab(tab, false);
   nextFit.fit();
@@ -1118,6 +1162,7 @@ function connect(tmuxSession?: string) {
   tab.statusMessage = "Connecting…";
   tab.tmuxAttached = Boolean(tmuxSession);
   tab.tmuxSession = tmuxSession;
+  savePersistedTabs();
   tmuxAttached = tab.tmuxAttached;
   socket = tabSocket;
 
@@ -1166,6 +1211,7 @@ function connect(tmuxSession?: string) {
       tab.connectionState = message.status;
       tab.statusMessage = message.message || (message.status === "connected" ? "Connected" : message.status === "connecting" ? "Authenticating SSH…" : "Connection closed");
       if (message.status === "connected") {
+        savePersistedTabs();
         onboarding.hidden = true;
         document.querySelector(".shell")?.classList.add("connected");
         document.documentElement.classList.add("connected");
@@ -1279,6 +1325,22 @@ function loadOnboardingTmuxSessions() {
   discoverySocket.addEventListener("close", () => {
     if (onboardingSessionsSocket === discoverySocket) onboardingSessionsSocket = undefined;
   });
+}
+
+function restorePreviousTabs() {
+  const saved = readPersistedTabs()
+    .map((entry) => ({ entry, target: targetForId(entry.targetId) }))
+    .filter((item): item is { entry: PersistedTab; target: TargetDescriptor } => Boolean(item.target));
+  if (saved.length === 0) {
+    updateRestoreButton();
+    return;
+  }
+  restoreTabsButton.hidden = true;
+  const [first, ...rest] = saved;
+  selectedTargetId = first.target.id;
+  targetSelect.value = selectedTargetId;
+  connect(first.entry.tmuxSession);
+  rest.forEach(({ entry, target }) => createAdditionalTab(target, entry.tmuxSession));
 }
 
 function renderTargetMenuTmuxSessions(target: TargetDescriptor, sessions: TmuxSession[], error?: string) {
@@ -1588,6 +1650,7 @@ function attachTmuxSession(sessionName: string) {
     activeTab.tmuxAttached = true;
     activeTab.tmuxSession = sessionName;
     activeTab.name = `${activeTab.target.label} · ${sessionName}`;
+    savePersistedTabs();
     renderTabs();
   }
   setActiveAgent("codex");
@@ -1850,10 +1913,13 @@ document.querySelector("#exit-ssh")?.addEventListener("click", () => {
     commandBar.classList.remove("visible");
     tabBar.hidden = true;
     setStatus("SSH session exited");
+    clearPersistedTabs();
+    updateRestoreButton();
     loadOnboardingTmuxSessions();
     return;
   }
   if (closingIndex >= 0) tabs.splice(closingIndex, 1);
+  savePersistedTabs();
   closingTab.terminal.dispose();
   closingTab.host.remove();
   const nextTab = tabs[Math.min(closingIndex, tabs.length - 1)];
@@ -1912,6 +1978,7 @@ document.addEventListener("pointerdown", (event) => {
   setTargetMenu(false);
 });
 connectButton.addEventListener("click", () => connect());
+restoreTabsButton.addEventListener("click", restorePreviousTabs);
 refreshOnboardingTmuxButton.addEventListener("click", loadOnboardingTmuxSessions);
 onboardingTmuxList.addEventListener("click", (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-onboarding-tmux-session]");
@@ -1956,6 +2023,7 @@ Promise.all([getOrCreateIdentity(), loadAvailableTargets()])
     connectButton.disabled = false;
     copyButton.disabled = false;
     setStatus("Device key ready");
+    updateRestoreButton();
     loadOnboardingTmuxSessions();
   })
   .catch((error) => {

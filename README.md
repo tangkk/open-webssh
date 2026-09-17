@@ -156,7 +156,10 @@ configuration typo from silently weakening origin or SSH host-key checks.
 The gateway sends WebSocket heartbeats to detect abandoned browser connections
 and clean up their SSH PTY and temporary SSH agent. A heartbeat does not keep
 an iOS browser page alive in the background; use tmux for work that must
-survive a suspended or disconnected browser.
+survive a suspended or disconnected browser. The browser stores the open tab
+targets and tmux session names locally; after a page is reopened, **Restore last
+connections** recreates all saved tabs. This restores the SSH attachments, not
+the browser's in-memory terminal scrollback.
 
 ## Themes
 
