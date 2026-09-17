@@ -1494,7 +1494,6 @@ bindControlKey("#arrow-up", "\u001b[A");
 bindControlKey("#arrow-down", "\u001b[B");
 bindControlKey("#enter-key", "\r");
 type AgentCommand = { command: string; description: string; input?: string };
-type BuiltInAgent = Exclude<AgentKind, "shell" | "extra">;
 // Add terminal shortcuts here. They are shown below the built-in menu entries
 // regardless of which shell or agent is currently active.
 const configurableCommands: AgentCommand[] = [
@@ -1638,28 +1637,35 @@ document.addEventListener("pointerdown", (event) => {
   if (agentCommandMenu.contains(event.target as Node) || agentCommandsButton?.contains(event.target as Node)) return;
   setAgentCommandMenu(false);
 });
-type ResumeAgent = { agent: BuiltInAgent; label: string; command: string; description: string };
-const resumeAgents: ResumeAgent[] = [
-  { agent: "codex", label: "Codex", command: "codex resume --all --no-alt-screen\r", description: "Resume the most recent Codex session" },
-  { agent: "claude", label: "Claude", command: "claude --resume\r", description: "Choose a Claude session to resume" },
+type AgentLaunchCommand = { id: string; agent: AgentKind; label: string; command: string; description: string; followup?: string };
+const agentLaunchCommands: AgentLaunchCommand[] = [
+  { id: "codex", agent: "codex", label: "codex", command: "codex --no-alt-screen\r", description: "Start Codex" },
+  { id: "codex-resume", agent: "codex", label: "codex resume", command: "codex resume --all --no-alt-screen\r", description: "Resume Codex" },
+  { id: "claude", agent: "claude", label: "claude", command: "claude\r", description: "Start Claude" },
+  { id: "claude-resume", agent: "claude", label: "claude --resume", command: "claude --resume\r", description: "Resume Claude" },
+  { id: "hermes", agent: "hermes", label: "hermes", command: "hermes chat\r", description: "Start Hermes" },
+  { id: "hermes-sessions", agent: "hermes", label: "hermes /sessions", command: "hermes chat\r", followup: "/sessions\r", description: "Start Hermes and browse sessions" },
+  { id: "opencode", agent: "extra", label: "opencode", command: "opencode\r", description: "Start OpenCode" },
 ];
 const agentResumeButton = document.querySelector<HTMLButtonElement>("#agent-resume");
+const hermesSessionsButton = document.querySelector<HTMLButtonElement>("#hermes-sessions");
+const extraAgentButton = document.querySelector<HTMLButtonElement>("#extra-agent");
 const agentResumeMenu = document.querySelector<HTMLElement>("#agent-resume-menu");
 function setAgentResumeMenu(open: boolean) {
-  if (!agentResumeMenu || !agentResumeButton) return;
+  if (!agentResumeMenu) return;
   agentResumeMenu.hidden = !open;
-  agentResumeButton.setAttribute("aria-expanded", String(open));
+  [agentResumeButton, hermesSessionsButton, extraAgentButton].forEach((button) => button?.setAttribute("aria-expanded", String(open)));
 }
 function renderAgentResumeMenu() {
   if (!agentResumeMenu) return;
   const heading = document.createElement("div");
   heading.className = "slash-menu-heading";
-  heading.textContent = "Resume agent";
-  const items = resumeAgents.map(({ agent, label, description }) => {
+  heading.textContent = "Agent commands";
+  const items = agentLaunchCommands.map(({ id, label, description }) => {
     const button = document.createElement("button");
     button.type = "button";
     button.setAttribute("role", "menuitem");
-    button.dataset.resumeAgent = agent;
+    button.dataset.agentLaunch = id;
     const code = document.createElement("code");
     code.textContent = label;
     const detail = document.createElement("small");
@@ -1676,28 +1682,37 @@ agentResumeButton?.addEventListener("pointerdown", (event) => {
   if (agentResumeMenu?.hidden ?? true) renderAgentResumeMenu();
   setAgentResumeMenu(agentResumeMenu?.hidden ?? true);
 });
-agentResumeMenu?.addEventListener("pointerdown", (event) => {
-  const item = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-resume-agent]");
-  if (!item?.dataset.resumeAgent) return;
+hermesSessionsButton?.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   event.stopPropagation();
-  const resumeAgent = resumeAgents.find((candidate) => candidate.agent === item.dataset.resumeAgent);
-  if (resumeAgent) {
-    setActiveAgent(resumeAgent.agent);
-    sendTerminalInput(resumeAgent.command);
+  setAgentCommandMenu(false);
+  if (agentResumeMenu?.hidden ?? true) renderAgentResumeMenu();
+  setAgentResumeMenu(agentResumeMenu?.hidden ?? true);
+});
+extraAgentButton?.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  setAgentCommandMenu(false);
+  if (agentResumeMenu?.hidden ?? true) renderAgentResumeMenu();
+  setAgentResumeMenu(agentResumeMenu?.hidden ?? true);
+});
+agentResumeMenu?.addEventListener("pointerdown", (event) => {
+  const item = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-agent-launch]");
+  if (!item?.dataset.agentLaunch) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const launch = agentLaunchCommands.find((candidate) => candidate.id === item.dataset.agentLaunch);
+  if (launch) {
+    setActiveAgent(launch.agent);
+    sendTerminalInput(launch.command);
+    if (launch.followup) window.setTimeout(() => sendTerminalInput(launch.followup!), 2500);
   }
   setAgentResumeMenu(false);
 });
 document.addEventListener("pointerdown", (event) => {
   if (!agentResumeMenu || agentResumeMenu.hidden) return;
-  if (agentResumeMenu.contains(event.target as Node) || agentResumeButton?.contains(event.target as Node)) return;
+  if (agentResumeMenu.contains(event.target as Node) || agentResumeButton?.contains(event.target as Node) || hermesSessionsButton?.contains(event.target as Node) || extraAgentButton?.contains(event.target as Node)) return;
   setAgentResumeMenu(false);
-});
-document.querySelector("#extra-agent")?.addEventListener("pointerdown", (event) => {
-  event.preventDefault();
-  if (!activeTab?.target.extraAgent || !supports(activeTab, "agents")) return;
-  setActiveAgent("extra");
-  send({ type: "extra_agent_launch" });
 });
 const tmuxAttachButton = document.querySelector<HTMLButtonElement>("#tmux-attach");
 const tmuxSessionMenu = document.querySelector<HTMLElement>("#tmux-session-menu");
@@ -1842,15 +1857,6 @@ document.addEventListener("pointerdown", (event) => {
   if (tmuxSessionMenu.contains(event.target as Node) || tmuxAttachButton?.contains(event.target as Node)) return;
   setTmuxSessionMenu(false);
 });
-function bindInteractiveCommand(selector: string, agent: BuiltInAgent, entryCommand: string, followupCommand: string, delayMs = 2500) {
-  document.querySelector(selector)?.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    setActiveAgent(agent);
-    sendTerminalInput(entryCommand);
-    window.setTimeout(() => sendTerminalInput(followupCommand), delayMs);
-  });
-}
-bindInteractiveCommand("#hermes-sessions", "hermes", "hermes chat\r", "/sessions\r");
 renderAgentCommandMenu();
 bindControlKey("#clear-screen", "clear\r");
 const copySelectionButton = document.querySelector<HTMLButtonElement>("#copy-selection")!;
