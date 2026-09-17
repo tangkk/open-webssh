@@ -187,7 +187,7 @@ are intentionally sent only after a deliberate button press.
 
 | Button | Meaning |
 | --- | --- |
-| `C` | Expand Codex commands (`codex` and `codex resume`) |
+| `C` | Expand C-starting agent commands (`codex`, `codex resume`, `claude`, and `claude --resume`) |
 | `H` | Expand Hermes commands (`hermes` and `hermes /sessions`) |
 | `O` | Expand OpenCode commands (`opencode` and `opencode --continue`) |
 | `T` | List and attach to a tmux session, create a new one, or delete an existing one; its command menu defaults to Codex |
