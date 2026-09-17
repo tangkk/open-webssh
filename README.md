@@ -187,7 +187,9 @@ are intentionally sent only after a deliberate button press.
 
 | Button | Meaning |
 | --- | --- |
-| `C` / `H` / `O` | Expand the agent launch menu with original Codex, Claude, Hermes, and OpenCode commands plus their resume/session entries; O remains available only when the target has a configured agent |
+| `C` | Expand Codex commands (`codex` and `codex resume`) |
+| `H` | Expand Hermes commands (`hermes` and `hermes /sessions`) |
+| `O` | Expand OpenCode commands (`opencode`); available only when the target has a configured agent |
 | `T` | List and attach to a tmux session, create a new one, or delete an existing one; its command menu defaults to Codex |
 | `⋯` | Open one shared menu of common agent slash commands, configurable terminal shortcuts, and the ⇞/⇟ paging-mode toggle |
 | `⧉` | Copy the selected terminal text |

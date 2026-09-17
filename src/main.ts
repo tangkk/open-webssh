@@ -1637,15 +1637,14 @@ document.addEventListener("pointerdown", (event) => {
   if (agentCommandMenu.contains(event.target as Node) || agentCommandsButton?.contains(event.target as Node)) return;
   setAgentCommandMenu(false);
 });
-type AgentLaunchCommand = { id: string; agent: AgentKind; label: string; command: string; description: string; followup?: string };
+type AgentMenuKind = "codex" | "hermes" | "opencode";
+type AgentLaunchCommand = { id: string; menu: AgentMenuKind; agent: AgentKind; label: string; command: string; description: string; followup?: string; extraLaunch?: boolean };
 const agentLaunchCommands: AgentLaunchCommand[] = [
-  { id: "codex", agent: "codex", label: "codex", command: "codex --no-alt-screen\r", description: "Start Codex" },
-  { id: "codex-resume", agent: "codex", label: "codex resume", command: "codex resume --all --no-alt-screen\r", description: "Resume Codex" },
-  { id: "claude", agent: "claude", label: "claude", command: "claude\r", description: "Start Claude" },
-  { id: "claude-resume", agent: "claude", label: "claude --resume", command: "claude --resume\r", description: "Resume Claude" },
-  { id: "hermes", agent: "hermes", label: "hermes", command: "hermes chat\r", description: "Start Hermes" },
-  { id: "hermes-sessions", agent: "hermes", label: "hermes /sessions", command: "hermes chat\r", followup: "/sessions\r", description: "Start Hermes and browse sessions" },
-  { id: "opencode", agent: "extra", label: "opencode", command: "opencode\r", description: "Start OpenCode" },
+  { id: "codex", menu: "codex", agent: "codex", label: "codex", command: "codex --no-alt-screen\r", description: "Start Codex" },
+  { id: "codex-resume", menu: "codex", agent: "codex", label: "codex resume", command: "codex resume --all --no-alt-screen\r", description: "Resume Codex" },
+  { id: "hermes", menu: "hermes", agent: "hermes", label: "hermes", command: "hermes chat\r", description: "Start Hermes" },
+  { id: "hermes-sessions", menu: "hermes", agent: "hermes", label: "hermes /sessions", command: "hermes chat\r", followup: "/sessions\r", description: "Start Hermes and browse sessions" },
+  { id: "opencode", menu: "opencode", agent: "extra", label: "opencode", command: "opencode\r", description: "Start OpenCode" },
 ];
 const agentResumeButton = document.querySelector<HTMLButtonElement>("#agent-resume");
 const hermesSessionsButton = document.querySelector<HTMLButtonElement>("#hermes-sessions");
@@ -1656,12 +1655,13 @@ function setAgentResumeMenu(open: boolean) {
   agentResumeMenu.hidden = !open;
   [agentResumeButton, hermesSessionsButton, extraAgentButton].forEach((button) => button?.setAttribute("aria-expanded", String(open)));
 }
-function renderAgentResumeMenu() {
+function renderAgentResumeMenu(menu: AgentMenuKind) {
   if (!agentResumeMenu) return;
   const heading = document.createElement("div");
   heading.className = "slash-menu-heading";
-  heading.textContent = "Agent commands";
-  const items = agentLaunchCommands.map(({ id, label, description }) => {
+  heading.textContent = `${menu === "opencode" ? "OpenCode" : menu[0].toUpperCase() + menu.slice(1)} commands`;
+  const commands = agentLaunchCommands.filter((command) => command.menu === menu);
+  const items = commands.map(({ id, label, description }) => {
     const button = document.createElement("button");
     button.type = "button";
     button.setAttribute("role", "menuitem");
@@ -1675,26 +1675,19 @@ function renderAgentResumeMenu() {
   });
   agentResumeMenu.replaceChildren(heading, ...items);
 }
-agentResumeButton?.addEventListener("pointerdown", (event) => {
+function toggleAgentResumeMenu(menu: AgentMenuKind, event: PointerEvent) {
   event.preventDefault();
   event.stopPropagation();
   setAgentCommandMenu(false);
-  if (agentResumeMenu?.hidden ?? true) renderAgentResumeMenu();
+  if (agentResumeMenu?.hidden ?? true) renderAgentResumeMenu(menu);
   setAgentResumeMenu(agentResumeMenu?.hidden ?? true);
-});
+}
+agentResumeButton?.addEventListener("pointerdown", (event) => toggleAgentResumeMenu("codex", event));
 hermesSessionsButton?.addEventListener("pointerdown", (event) => {
-  event.preventDefault();
-  event.stopPropagation();
-  setAgentCommandMenu(false);
-  if (agentResumeMenu?.hidden ?? true) renderAgentResumeMenu();
-  setAgentResumeMenu(agentResumeMenu?.hidden ?? true);
+  toggleAgentResumeMenu("hermes", event);
 });
 extraAgentButton?.addEventListener("pointerdown", (event) => {
-  event.preventDefault();
-  event.stopPropagation();
-  setAgentCommandMenu(false);
-  if (agentResumeMenu?.hidden ?? true) renderAgentResumeMenu();
-  setAgentResumeMenu(agentResumeMenu?.hidden ?? true);
+  toggleAgentResumeMenu("opencode", event);
 });
 agentResumeMenu?.addEventListener("pointerdown", (event) => {
   const item = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-agent-launch]");
