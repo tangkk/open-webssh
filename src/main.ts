@@ -580,8 +580,6 @@ type TerminalTab = {
   statusMessage?: string;
   outputQueue: Uint8Array[];
   outputFrame?: number;
-  commandLine: string;
-  commandEscapeState: number;
 };
 const tabBar = document.querySelector<HTMLElement>("#tab-bar")!;
 const targetMenu = document.querySelector<HTMLElement>("#target-menu")!;
@@ -819,7 +817,7 @@ function createAdditionalTab(target: TargetDescriptor, tmuxSession?: string) {
   const nextTerminal = new Terminal({ cursorBlink: true, cursorStyle: "bar", fontFamily: '"SFMono-Regular", "SF Mono", Menlo, monospace', fontSize: 12, lineHeight: 1.18, scrollback: 4000, disableStdin: false, theme: themes[activeTheme].xterm });
   const nextFit = new FitAddon(); nextTerminal.loadAddon(nextFit); nextTerminal.open(host);
   const ordinal = nextTabId++;
-  const tab: TerminalTab = { id: ordinal, name: tmuxSession ? `${target.label} · ${tmuxSession}` : tabName(target, ordinal), target, host, terminal: nextTerminal, fit: nextFit, tmuxAttached: Boolean(tmuxSession), tmuxSession, agent: "shell", connectionState: "idle", outputQueue: [], commandLine: "", commandEscapeState: 0 };
+  const tab: TerminalTab = { id: ordinal, name: tmuxSession ? `${target.label} · ${tmuxSession}` : tabName(target, ordinal), target, host, terminal: nextTerminal, fit: nextFit, tmuxAttached: Boolean(tmuxSession), tmuxSession, agent: "shell", connectionState: "idle", outputQueue: [] };
   tabs.push(tab);
   bindTerminalBehavior(tab);
   activateTab(tab, false);
@@ -870,7 +868,7 @@ function connectTab(tab: TerminalTab) {
   });
 }
 
-const initialTab: TerminalTab = { id: nextTabId++, name: "Terminal 1", target: { id: "", label: "", capabilities: {} }, host: terminalHost, terminal, fit, tmuxAttached: false, agent: "shell", connectionState: "idle", outputQueue: [], commandLine: "", commandEscapeState: 0 };
+const initialTab: TerminalTab = { id: nextTabId++, name: "Terminal 1", target: { id: "", label: "", capabilities: {} }, host: terminalHost, terminal, fit, tmuxAttached: false, agent: "shell", connectionState: "idle", outputQueue: [] };
 tabs.push(initialTab);
 activeTab = initialTab;
 bindTerminalBehavior(initialTab);
@@ -900,66 +898,9 @@ function sendTerminalInput(value: string) {
   send({ type: "input", data: bytesToBase64(new TextEncoder().encode(value)) });
 }
 
-const HISTORY_STORAGE_PREFIX = "webssh.history.v1.";
-const HISTORY_LIMIT = 50;
-
-function loadCommandHistory(targetId: string): string[] {
-  if (!targetId) return [];
-  try {
-    const raw = localStorage.getItem(HISTORY_STORAGE_PREFIX + targetId);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === "string" && entry.length > 0) : [];
-  } catch {
-    return [];
-  }
-}
-
-function pushCommandHistory(targetId: string, command: string) {
-  if (!targetId || !command) return;
-  const history = loadCommandHistory(targetId).filter((entry) => entry !== command);
-  history.unshift(command);
-  try {
-    localStorage.setItem(HISTORY_STORAGE_PREFIX + targetId, JSON.stringify(history.slice(0, HISTORY_LIMIT)));
-  } catch {
-    // Storage may be unavailable; the current session keeps tracking regardless.
-  }
-}
-
-function trackCommandInput(tab: TerminalTab, data: string) {
-  let state = tab.commandEscapeState;
-  for (let index = 0; index < data.length; index += 1) {
-    const char = data[index];
-    const code = char.charCodeAt(0);
-    if (state === 1) {
-      state = char === "[" || char === "O" ? 2 : 0;
-      continue;
-    }
-    if (state === 2) {
-      if (code >= 0x40 && code <= 0x7e) state = 0;
-      continue;
-    }
-    if (char === "\u001b") { state = 1; continue; }
-    if (char === "\r" || char === "\n") {
-      const command = tab.commandLine.trim();
-      if (command && command.length <= 500) pushCommandHistory(tab.target.id, command);
-      tab.commandLine = "";
-      continue;
-    }
-    if (char === "\u0003" || char === "\u0015") { tab.commandLine = ""; continue; }
-    if (char === "\u0017") { tab.commandLine = tab.commandLine.replace(/\s*\S+\s*$/, ""); continue; }
-    if (char === "\u007f" || char === "\b") { tab.commandLine = tab.commandLine.slice(0, -1); continue; }
-    if (code < 0x20) continue;
-    tab.commandLine += char;
-  }
-  tab.commandEscapeState = state;
-}
-
 function bindTerminalBehavior(tab: TerminalTab) {
   tab.terminal.onData((data) => {
     imeLog("SEND", JSON.stringify(data));
-    if (tab.agent === "shell") trackCommandInput(tab, data);
-    else { tab.commandLine = ""; tab.commandEscapeState = 0; }
     sendToTab(tab, { type: "input", data: bytesToBase64(new TextEncoder().encode(data)) });
   });
   tab.terminal.onScroll(() => {
@@ -1442,41 +1383,23 @@ bindControlKey("#arrow-up", "\u001b[A");
 bindControlKey("#arrow-down", "\u001b[B");
 bindControlKey("#enter-key", "\r");
 type AgentCommand = { command: string; description: string };
+type BuiltInAgent = Exclude<AgentKind, "shell" | "extra">;
 // Add terminal shortcuts here. They are shown below the built-in menu entries
 // regardless of which shell or agent is currently active.
 const configurableCommands: AgentCommand[] = [
   { command: ". x2o.sh", description: "Load x2o shell configuration" },
 ];
-type BuiltInAgent = Exclude<AgentKind, "shell" | "extra">;
-const agentCommands: Record<BuiltInAgent, AgentCommand[]> = {
-  codex: [
-    { command: "/status", description: "Session and usage" },
-    { command: "/model", description: "View or switch model" },
-    { command: "/compact", description: "Compact the current context" },
-    { command: "/side", description: "Start a side chat without interrupting the main chat" },
-    { command: "/help", description: "Show available commands" },
-  ],
-  hermes: [
-    { command: "/status", description: "Session, model, and context" },
-    { command: "/model", description: "View or switch model" },
-    { command: "/sessions", description: "Browse past sessions" },
-    { command: "/resume", description: "Resume a past session" },
-    { command: "/compress", description: "Compress the current context" },
-    { command: "/help", description: "Show available commands" },
-  ],
-  claude: [
-    { command: "/status", description: "Session, model, and context" },
-    { command: "/model", description: "View or switch model" },
-    { command: "/compact", description: "Compact the current context" },
-    { command: "/btw", description: "Ask a side question outside the conversation" },
-    { command: "/help", description: "Show available commands" },
-  ],
-};
-const agentLabels: Record<BuiltInAgent, string> = {
-  codex: "Codex",
-  hermes: "Hermes",
-  claude: "Claude",
-};
+const commonSlashCommands: AgentCommand[] = [
+  { command: "/status", description: "Session, model, and context" },
+  { command: "/model", description: "View or switch model" },
+  { command: "/compact", description: "Compact the current context" },
+  { command: "/compress", description: "Compress the current context" },
+  { command: "/sessions", description: "Browse past sessions" },
+  { command: "/resume", description: "Resume a past session" },
+  { command: "/side", description: "Start a side chat without interrupting the main chat" },
+  { command: "/btw", description: "Ask a side question outside the conversation" },
+  { command: "/help", description: "Show available commands" },
+];
 const agentCommandsButton = document.querySelector<HTMLButtonElement>("#agent-commands");
 const agentCommandMenu = document.querySelector<HTMLElement>("#agent-command-menu");
 const PAGE_SCROLL_STORAGE_KEY = "webssh.pageScroll.v1";
@@ -1488,8 +1411,7 @@ try {
   // Default remains "shell" when storage is unavailable.
 }
 function renderCurrentCommandMenu() {
-  if (activeTab?.agent === "shell") renderShellHistoryMenu();
-  else renderAgentCommandMenu();
+  renderAgentCommandMenu();
 }
 function pageScrollModeItem(): HTMLButtonElement {
   const button = document.createElement("button");
@@ -1532,47 +1454,18 @@ function configurableCommandItems(): HTMLElement[] {
   });
   return [heading, ...items];
 }
-function setAgentCommandMenu(open: boolean) {
-  if (!agentCommandMenu || !agentCommandsButton) return;
-  agentCommandMenu.hidden = !open;
-  agentCommandsButton.setAttribute("aria-expanded", String(open));
-}
-function renderAgentCommandMenu() {
-  if (!agentCommandMenu || !agentCommandsButton) return;
-  const agent = activeTab?.agent ?? "shell";
-  if (agent === "shell") {
-    agentCommandsButton.textContent = "⋯";
-    agentCommandsButton.disabled = false;
-    agentCommandsButton.title = "Command history";
-    agentCommandsButton.setAttribute("aria-label", "Open recent commands");
-    agentCommandMenu.setAttribute("aria-label", "Recent commands");
-    agentCommandMenu.replaceChildren();
-    return;
-  }
-  agentCommandsButton.textContent = "⋯";
+function extraAgentCommandItems(): HTMLElement[] {
   const extraAgent = activeTab?.target.extraAgent;
-  if (agent === "extra" && !extraAgent) {
-    agentCommandsButton.disabled = true;
-    agentCommandMenu.replaceChildren();
-    return;
-  }
-  agentCommandsButton.disabled = false;
-  const label = agent === "extra" ? extraAgent!.label : agentLabels[agent];
-  agentCommandsButton.title = `${label} commands`;
-  agentCommandsButton.setAttribute("aria-label", `Open common ${label} commands`);
-  agentCommandMenu.setAttribute("aria-label", `${label} common commands`);
+  if (!extraAgent || extraAgent.commands.length === 0) return [];
   const heading = document.createElement("div");
   heading.className = "slash-menu-heading";
-  heading.textContent = `${label} Commands`;
-  const commands = agent === "extra"
-    ? extraAgent!.commands.map(({ id, label, description }) => ({ id, label, description }))
-    : agentCommands[agent].map(({ command, description }) => ({ id: command, label: command, description }));
-  const items = commands.map(({ id, label, description }) => {
+  heading.textContent = `${extraAgent.label} commands`;
+  const items = extraAgent.commands.map(({ id, label, description }) => {
     const button = document.createElement("button");
     button.type = "button";
     button.setAttribute("role", "menuitem");
     button.dataset.command = id;
-    if (agent === "extra") button.dataset.extraAgentCommand = id;
+    button.dataset.extraAgentCommand = id;
     const code = document.createElement("code");
     code.textContent = label;
     const detail = document.createElement("small");
@@ -1580,35 +1473,36 @@ function renderAgentCommandMenu() {
     button.append(code, detail);
     return button;
   });
-  agentCommandMenu.replaceChildren(heading, ...items, pageScrollModeItem(), ...configurableCommandItems());
+  return [heading, ...items];
 }
-function renderShellHistoryMenu() {
-  if (!agentCommandMenu || !activeTab) return;
+function setAgentCommandMenu(open: boolean) {
+  if (!agentCommandMenu || !agentCommandsButton) return;
+  agentCommandMenu.hidden = !open;
+  agentCommandsButton.setAttribute("aria-expanded", String(open));
+}
+function renderAgentCommandMenu() {
+  if (!agentCommandMenu || !agentCommandsButton) return;
+  agentCommandsButton.textContent = "⋯";
+  agentCommandsButton.disabled = false;
+  agentCommandsButton.title = "Common slash commands";
+  agentCommandsButton.setAttribute("aria-label", "Open common slash commands");
+  agentCommandMenu.setAttribute("aria-label", "Common slash commands");
   const heading = document.createElement("div");
   heading.className = "slash-menu-heading";
-  heading.textContent = "Recent commands";
-  const commands = loadCommandHistory(activeTab.target.id).slice(0, 10);
-  if (commands.length === 0) {
-    const empty = document.createElement("button");
-    empty.type = "button";
-    empty.disabled = true;
-    empty.textContent = "No recent commands yet";
-    agentCommandMenu.replaceChildren(heading, empty, pageScrollModeItem(), ...configurableCommandItems());
-    return;
-  }
-  const items = commands.map((command) => {
+  heading.textContent = "Common slash commands";
+  const items = commonSlashCommands.map(({ command, description }) => {
     const button = document.createElement("button");
     button.type = "button";
     button.setAttribute("role", "menuitem");
     button.dataset.command = command;
-    button.title = command;
     const code = document.createElement("code");
-    code.className = "history-command";
     code.textContent = command;
-    button.append(code);
+    const detail = document.createElement("small");
+    detail.textContent = description;
+    button.append(code, detail);
     return button;
   });
-  agentCommandMenu.replaceChildren(heading, ...items, pageScrollModeItem(), ...configurableCommandItems());
+  agentCommandMenu.replaceChildren(heading, ...items, ...extraAgentCommandItems(), pageScrollModeItem(), ...configurableCommandItems());
 }
 function setActiveAgent(agent: AgentKind) {
   if (!activeTab) return;
@@ -1619,7 +1513,7 @@ function setActiveAgent(agent: AgentKind) {
 agentCommandsButton?.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   event.stopPropagation();
-  if (activeTab?.agent === "shell") renderShellHistoryMenu();
+  renderAgentCommandMenu();
   setAgentCommandMenu(agentCommandMenu?.hidden ?? true);
 });
 agentCommandMenu?.addEventListener("pointerdown", (event) => {
@@ -1627,7 +1521,7 @@ agentCommandMenu?.addEventListener("pointerdown", (event) => {
   if (!item) return;
   event.preventDefault();
   event.stopPropagation();
-  if (activeTab?.agent === "extra" && item.dataset.extraAgentCommand) send({ type: "extra_agent_command", id: item.dataset.extraAgentCommand });
+  if (item.dataset.extraAgentCommand) send({ type: "extra_agent_command", id: item.dataset.extraAgentCommand });
   else sendTerminalInput(`${item.dataset.command}\r`);
   setAgentCommandMenu(false);
 });

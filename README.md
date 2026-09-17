@@ -186,7 +186,7 @@ are intentionally sent only after a deliberate button press.
 | `H` | Start Hermes and open its session picker |
 | `O` | Start the target's optional configured agent; its label and command are private target configuration |
 | `T` | List and attach to a tmux session, create a new one, or delete an existing one; its command menu defaults to Codex |
-| `⋯` | In the shell, open the recent command history for this target; after selecting C, H, or O, open that agent's slash-command menu; also toggles the ⇞/⇟ paging mode |
+| `⋯` | Open one shared menu of common agent slash commands, configurable terminal shortcuts, and the ⇞/⇟ paging-mode toggle |
 | `⧉` | Copy the selected terminal text |
 | `⎘` | Paste clipboard text into the terminal |
 | `⌧` | Send `clear` |
@@ -233,9 +233,10 @@ entries for every shell and agent; the default shortcut runs `. x2o.sh`.
 The O button is intentionally generic. Add an `extraAgent` object to the
 relevant private target entry; the generic schema is shown in
 [`deploy/targets.json.example`](deploy/targets.json.example). `buttonLabel`
-controls the visible key, `label` controls the accessible name and `⋯` heading,
-and `launchCommand` starts the tool. Each `commands` entry has a stable `id`,
-a displayed `label`, a `description`, and the server-side command to run.
+controls the visible key, `label` controls the accessible name and its section
+in the shared `⋯` menu, and `launchCommand` starts the tool. Each `commands`
+entry has a stable `id`, a displayed `label`, a `description`, and the
+server-side command to run.
 Set `launchCommand` to the tool's own resume/continue invocation when O should
 reopen the most recent session instead of starting a new one.
 
