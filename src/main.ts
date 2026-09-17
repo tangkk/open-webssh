@@ -1442,6 +1442,11 @@ bindControlKey("#arrow-up", "\u001b[A");
 bindControlKey("#arrow-down", "\u001b[B");
 bindControlKey("#enter-key", "\r");
 type AgentCommand = { command: string; description: string };
+// Add terminal shortcuts here. They are shown below the built-in menu entries
+// regardless of which shell or agent is currently active.
+const configurableCommands: AgentCommand[] = [
+  { command: ". x2o.sh", description: "Load x2o shell configuration" },
+];
 type BuiltInAgent = Exclude<AgentKind, "shell" | "extra">;
 const agentCommands: Record<BuiltInAgent, AgentCommand[]> = {
   codex: [
@@ -1508,6 +1513,25 @@ function pageScrollModeItem(): HTMLButtonElement {
   });
   return button;
 }
+function configurableCommandItems(): HTMLElement[] {
+  if (configurableCommands.length === 0) return [];
+  const heading = document.createElement("div");
+  heading.className = "slash-menu-heading";
+  heading.textContent = "Custom commands";
+  const items = configurableCommands.map(({ command, description }) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute("role", "menuitem");
+    button.dataset.command = command;
+    const code = document.createElement("code");
+    code.textContent = command;
+    const detail = document.createElement("small");
+    detail.textContent = description;
+    button.append(code, detail);
+    return button;
+  });
+  return [heading, ...items];
+}
 function setAgentCommandMenu(open: boolean) {
   if (!agentCommandMenu || !agentCommandsButton) return;
   agentCommandMenu.hidden = !open;
@@ -1556,7 +1580,7 @@ function renderAgentCommandMenu() {
     button.append(code, detail);
     return button;
   });
-  agentCommandMenu.replaceChildren(heading, ...items, pageScrollModeItem());
+  agentCommandMenu.replaceChildren(heading, ...items, pageScrollModeItem(), ...configurableCommandItems());
 }
 function renderShellHistoryMenu() {
   if (!agentCommandMenu || !activeTab) return;
@@ -1569,7 +1593,7 @@ function renderShellHistoryMenu() {
     empty.type = "button";
     empty.disabled = true;
     empty.textContent = "No recent commands yet";
-    agentCommandMenu.replaceChildren(heading, empty, pageScrollModeItem());
+    agentCommandMenu.replaceChildren(heading, empty, pageScrollModeItem(), ...configurableCommandItems());
     return;
   }
   const items = commands.map((command) => {
@@ -1584,7 +1608,7 @@ function renderShellHistoryMenu() {
     button.append(code);
     return button;
   });
-  agentCommandMenu.replaceChildren(heading, ...items, pageScrollModeItem());
+  agentCommandMenu.replaceChildren(heading, ...items, pageScrollModeItem(), ...configurableCommandItems());
 }
 function setActiveAgent(agent: AgentKind) {
   if (!activeTab) return;

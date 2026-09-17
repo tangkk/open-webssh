@@ -224,6 +224,10 @@ makes PageUp/PageDown send real PageUp/PageDown keys inside tmux as well, so an
 alternate-screen TUI such as OpenCode or Codex can page through its own output.
 The choice is remembered per browser profile.
 
+The `⋯` menu can also include terminal-wide shortcuts configured in
+`src/main.ts` through `configurableCommands`. These appear below the built-in
+entries for every shell and agent; the default shortcut runs `. x2o.sh`.
+
 ### Configuring O
 
 The O button is intentionally generic. Add an `extraAgent` object to the
