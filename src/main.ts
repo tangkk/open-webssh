@@ -1382,7 +1382,7 @@ bindControlKey("#tab-key", "\t");
 bindControlKey("#arrow-up", "\u001b[A");
 bindControlKey("#arrow-down", "\u001b[B");
 bindControlKey("#enter-key", "\r");
-type AgentCommand = { command: string; description: string };
+type AgentCommand = { command: string; description: string; input?: string };
 type BuiltInAgent = Exclude<AgentKind, "shell" | "extra">;
 // Add terminal shortcuts here. They are shown below the built-in menu entries
 // regardless of which shell or agent is currently active.
@@ -1399,6 +1399,7 @@ const commonSlashCommands: AgentCommand[] = [
   { command: "/side", description: "Start a side chat without interrupting the main chat" },
   { command: "/btw", description: "Ask a side question outside the conversation" },
   { command: "/help", description: "Show available commands" },
+  { command: "R", description: "Continue the session here", input: "r" },
 ];
 const agentCommandsButton = document.querySelector<HTMLButtonElement>("#agent-commands");
 const agentCommandMenu = document.querySelector<HTMLElement>("#agent-command-menu");
@@ -1469,11 +1470,12 @@ function renderAgentCommandMenu() {
   const heading = document.createElement("div");
   heading.className = "slash-menu-heading";
   heading.textContent = "Common slash commands";
-  const items = commonSlashCommands.map(({ command, description }) => {
+  const items = commonSlashCommands.map(({ command, description, input }) => {
     const button = document.createElement("button");
     button.type = "button";
     button.setAttribute("role", "menuitem");
     button.dataset.command = command;
+    if (input !== undefined) button.dataset.input = input;
     const code = document.createElement("code");
     code.textContent = command;
     const detail = document.createElement("small");
@@ -1500,7 +1502,7 @@ agentCommandMenu?.addEventListener("pointerdown", (event) => {
   if (!item) return;
   event.preventDefault();
   event.stopPropagation();
-  sendTerminalInput(`${item.dataset.command}\r`);
+  sendTerminalInput(item.dataset.input ?? `${item.dataset.command}\r`);
   setAgentCommandMenu(false);
 });
 document.addEventListener("pointerdown", (event) => {
