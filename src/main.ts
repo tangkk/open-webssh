@@ -157,7 +157,6 @@ app.innerHTML = `
         <button class="control-key copy-key" id="copy-selection" type="button" aria-label="Copy selected text" disabled>⧉</button>
         <button class="control-key" id="paste" type="button" aria-label="Paste clipboard contents">⎘</button>
         <button class="control-key" id="clear-screen" type="button" aria-label="Clear screen">⌧</button>
-        <button class="control-key" id="refresh-page" type="button" aria-label="Refresh page" title="Refresh page">↻</button>
         <button class="control-key" id="page-up" type="button" aria-label="Page up">⇞</button>
         <button class="control-key" id="page-down" type="button" aria-label="Page down">⇟</button>
       </div>
@@ -169,6 +168,7 @@ app.innerHTML = `
         <button class="control-key arrow-key" id="arrow-down" type="button" aria-label="Send arrow down">↓</button>
         <button class="control-key cursor-key" id="cursor-location" type="button" aria-label="Return to terminal cursor">⌖</button>
         <button class="control-key keyboard-open-key" id="keyboard-open" type="button" aria-label="Open keyboard">⌨</button>
+        <button class="control-key" id="refresh-page" type="button" aria-label="Refresh page" title="Refresh page">↻</button>
         <button class="control-key" id="ctrl-c" type="button" aria-label="Send Ctrl-C">␃</button>
         <button class="control-key enter-key" id="enter-key" type="button" aria-label="Send Enter">↵</button>
       </div>
