@@ -1454,27 +1454,6 @@ function configurableCommandItems(): HTMLElement[] {
   });
   return [heading, ...items];
 }
-function extraAgentCommandItems(): HTMLElement[] {
-  const extraAgent = activeTab?.target.extraAgent;
-  if (!extraAgent || extraAgent.commands.length === 0) return [];
-  const heading = document.createElement("div");
-  heading.className = "slash-menu-heading";
-  heading.textContent = `${extraAgent.label} commands`;
-  const items = extraAgent.commands.map(({ id, label, description }) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.setAttribute("role", "menuitem");
-    button.dataset.command = id;
-    button.dataset.extraAgentCommand = id;
-    const code = document.createElement("code");
-    code.textContent = label;
-    const detail = document.createElement("small");
-    detail.textContent = description;
-    button.append(code, detail);
-    return button;
-  });
-  return [heading, ...items];
-}
 function setAgentCommandMenu(open: boolean) {
   if (!agentCommandMenu || !agentCommandsButton) return;
   agentCommandMenu.hidden = !open;
@@ -1502,7 +1481,7 @@ function renderAgentCommandMenu() {
     button.append(code, detail);
     return button;
   });
-  agentCommandMenu.replaceChildren(heading, ...items, ...extraAgentCommandItems(), pageScrollModeItem(), ...configurableCommandItems());
+  agentCommandMenu.replaceChildren(heading, ...items, pageScrollModeItem(), ...configurableCommandItems());
 }
 function setActiveAgent(agent: AgentKind) {
   if (!activeTab) return;
@@ -1521,8 +1500,7 @@ agentCommandMenu?.addEventListener("pointerdown", (event) => {
   if (!item) return;
   event.preventDefault();
   event.stopPropagation();
-  if (item.dataset.extraAgentCommand) send({ type: "extra_agent_command", id: item.dataset.extraAgentCommand });
-  else sendTerminalInput(`${item.dataset.command}\r`);
+  sendTerminalInput(`${item.dataset.command}\r`);
   setAgentCommandMenu(false);
 });
 document.addEventListener("pointerdown", (event) => {
