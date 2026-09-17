@@ -135,7 +135,7 @@ app.innerHTML = `
         <label class="target-picker-label" for="target-select">SSH target</label>
         <select class="target-select" id="target-select" disabled></select>
         <button class="primary" id="connect" disabled>Connect</button>
-        <button class="secondary restore-button" id="restore-tabs" type="button" hidden>Restore last connections</button>
+        <button class="secondary restore-button" id="restore-tabs" type="button" hidden>Restore last tmux sessions</button>
         <section class="onboarding-tmux" id="onboarding-tmux" aria-labelledby="onboarding-tmux-title" hidden>
           <div class="onboarding-tmux-head">
             <span id="onboarding-tmux-title">TMUX SESSIONS</span>
@@ -604,7 +604,7 @@ let onboardingSessionsRequest = 0;
 let targetMenuSessionsRequest = 0;
 const targetMenuSessionSockets = new Set<WebSocket>();
 const OPEN_TABS_STORAGE_KEY = "webssh.open-tabs.v1";
-type PersistedTab = { targetId: string; tmuxSession?: string };
+type PersistedTab = { targetId: string; tmuxSession: string };
 let preserveDisconnectedSnapshot = false;
 
 function readPersistedTabs(): PersistedTab[] {
@@ -614,7 +614,7 @@ function readPersistedTabs(): PersistedTab[] {
     if (!Array.isArray(parsed)) return [];
     return parsed.filter((entry): entry is PersistedTab => Boolean(
       entry && typeof entry === "object" && typeof entry.targetId === "string" && entry.targetId.length > 0 &&
-      (entry.tmuxSession === undefined || typeof entry.tmuxSession === "string"),
+      typeof entry.tmuxSession === "string" && entry.tmuxSession.length > 0,
     ));
   } catch {
     return [];
@@ -624,8 +624,8 @@ function readPersistedTabs(): PersistedTab[] {
 function savePersistedTabs() {
   if (preserveDisconnectedSnapshot) return;
   const entries: PersistedTab[] = tabs
-    .filter((tab) => tab.target.id)
-    .map((tab) => ({ targetId: tab.target.id, ...(tab.tmuxSession ? { tmuxSession: tab.tmuxSession } : {}) }));
+    .filter((tab) => tab.target.id && tab.tmuxSession)
+    .map((tab) => ({ targetId: tab.target.id, tmuxSession: tab.tmuxSession! }));
   try {
     if (entries.length > 0) localStorage.setItem(OPEN_TABS_STORAGE_KEY, JSON.stringify(entries));
     else localStorage.removeItem(OPEN_TABS_STORAGE_KEY);
