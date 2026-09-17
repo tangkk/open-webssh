@@ -168,7 +168,7 @@ app.innerHTML = `
         <button class="control-key arrow-key" id="arrow-down" type="button" aria-label="Send arrow down">↓</button>
         <button class="control-key cursor-key" id="cursor-location" type="button" aria-label="Return to terminal cursor">⌖</button>
         <button class="control-key keyboard-open-key" id="keyboard-open" type="button" aria-label="Open keyboard">⌨</button>
-        <button class="control-key" id="refresh-page" type="button" aria-label="Refresh page" title="Refresh page">↻</button>
+        <button class="control-key" id="refresh-page" type="button" aria-label="Wake and redraw page" title="Wake and redraw page">↻</button>
         <button class="control-key" id="ctrl-c" type="button" aria-label="Send Ctrl-C">␃</button>
         <button class="control-key enter-key" id="enter-key" type="button" aria-label="Send Enter">↵</button>
       </div>
@@ -1477,8 +1477,10 @@ document.querySelector("#ctrl-c")?.addEventListener("pointerdown", (event) => {
 });
 document.querySelector("#refresh-page")?.addEventListener("pointerdown", (event) => {
   event.preventDefault();
-  savePersistedTabs();
-  window.location.reload();
+  updateVisualViewport(true);
+  fitTerminal(false);
+  flushTerminalPaint();
+  requestAnimationFrame(flushTerminalPaint);
 });
 function bindControlKey(selector: string, sequence: string) {
   document.querySelector(selector)?.addEventListener("pointerdown", (event) => {
