@@ -157,6 +157,7 @@ app.innerHTML = `
         <button class="control-key copy-key" id="copy-selection" type="button" aria-label="Copy selected text" disabled>⧉</button>
         <button class="control-key" id="paste" type="button" aria-label="Paste clipboard contents">⎘</button>
         <button class="control-key" id="clear-screen" type="button" aria-label="Clear screen">⌧</button>
+        <button class="control-key" id="refresh-page" type="button" aria-label="Refresh page" title="Refresh page">↻</button>
         <button class="control-key" id="page-up" type="button" aria-label="Page up">⇞</button>
         <button class="control-key" id="page-down" type="button" aria-label="Page down">⇟</button>
       </div>
@@ -1474,6 +1475,11 @@ document.querySelector("#ctrl-c")?.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   sendTerminalInput("\u0003");
   terminal.scrollToBottom();
+});
+document.querySelector("#refresh-page")?.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  savePersistedTabs();
+  window.location.reload();
 });
 const ctrlDButton = document.querySelector<HTMLButtonElement>("#ctrl-d");
 function updateKeyboardFitButton() {

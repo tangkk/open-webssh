@@ -195,6 +195,7 @@ are intentionally sent only after a deliberate button press.
 | `⧉` | Copy the selected terminal text |
 | `⎘` | Paste clipboard text into the terminal |
 | `⌧` | Send `clear` |
+| `↻` | Save the tmux restore state and reload the page |
 | `⇞` / `⇟` | Page up / page down; ordinary shells use local scrollback, alternate-screen TUIs receive real PageUp/PageDown, and tmux uses tmux mouse-wheel events unless the `⋯` menu switches paging to TUI keys |
 | `⏻` | Logout and destroy the active terminal session |
 | `⎋` | Send Escape |
