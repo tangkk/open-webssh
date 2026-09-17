@@ -412,8 +412,10 @@ websocketServer.on("connection", (websocket) => {
           `${target.user}@${target.host}`,
         ];
         if (message.tmuxSession) {
-          const tmuxAction = message.tmuxNewSession ? "new-session" : "attach-session";
-          args.push(`${shellQuote(target.tmuxBin || "tmux")} ${tmuxAction} -s ${shellQuote(message.tmuxSession)}`);
+          const tmuxAction = message.tmuxNewSession
+            ? `new-session -s ${shellQuote(message.tmuxSession)}`
+            : `attach-session -t ${shellQuote(message.tmuxSession)}`;
+          args.push(`${shellQuote(target.tmuxBin || "tmux")} ${tmuxAction}`);
         }
         send(websocket, { type: "status", status: "connecting", message: "Verifying device signature…" });
         terminal = pty.spawn("ssh", args, {
