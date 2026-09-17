@@ -169,7 +169,6 @@ app.innerHTML = `
         <button class="control-key arrow-key" id="arrow-down" type="button" aria-label="Send arrow down">↓</button>
         <button class="control-key cursor-key" id="cursor-location" type="button" aria-label="Return to terminal cursor">⌖</button>
         <button class="control-key keyboard-open-key" id="keyboard-open" type="button" aria-label="Open keyboard">⌨</button>
-        <button class="control-key" id="ctrl-d" type="button" aria-label="Keyboard resize: resize on space" title="Keyboard resize toggle">⇄</button>
         <button class="control-key" id="ctrl-c" type="button" aria-label="Send Ctrl-C">␃</button>
         <button class="control-key enter-key" id="enter-key" type="button" aria-label="Send Enter">↵</button>
       </div>
@@ -1481,24 +1480,6 @@ document.querySelector("#refresh-page")?.addEventListener("pointerdown", (event)
   savePersistedTabs();
   window.location.reload();
 });
-const ctrlDButton = document.querySelector<HTMLButtonElement>("#ctrl-d");
-function updateKeyboardFitButton() {
-  ctrlDButton?.classList.toggle("keyboard-css-off", !keyboardCssMode);
-  ctrlDButton?.setAttribute(
-    "aria-label",
-    keyboardCssMode ? "Keyboard resize: resize on space (no redraw)" : "Keyboard resize: resize immediately (redraw)",
-  );
-  ctrlDButton?.setAttribute(
-    "title",
-    keyboardCssMode ? "Tap to switch to immediate resize mode" : "Tap to switch to no-redraw mode",
-  );
-}
-ctrlDButton?.addEventListener("pointerdown", (event) => {
-  event.preventDefault();
-  keyboardCssMode = !keyboardCssMode;
-  updateKeyboardFitButton();
-});
-updateKeyboardFitButton();
 function bindControlKey(selector: string, sequence: string) {
   document.querySelector(selector)?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
@@ -1564,6 +1545,23 @@ function pageScrollModeItem(): HTMLButtonElement {
   });
   return button;
 }
+function keyboardFitModeItem(): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.setAttribute("role", "menuitem");
+  const code = document.createElement("code");
+  code.textContent = "⇄";
+  const detail = document.createElement("small");
+  detail.textContent = keyboardCssMode ? "Keyboard resize: no redraw" : "Keyboard resize: immediate redraw";
+  button.append(code, detail);
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    keyboardCssMode = !keyboardCssMode;
+    renderCurrentCommandMenu();
+  });
+  return button;
+}
 function configurableCommandItems(): HTMLElement[] {
   if (configurableCommands.length === 0) return [];
   const heading = document.createElement("div");
@@ -1611,7 +1609,7 @@ function renderAgentCommandMenu() {
     button.append(code, detail);
     return button;
   });
-  agentCommandMenu.replaceChildren(heading, ...items, pageScrollModeItem(), ...configurableCommandItems());
+  agentCommandMenu.replaceChildren(heading, ...items, pageScrollModeItem(), keyboardFitModeItem(), ...configurableCommandItems());
 }
 function setActiveAgent(agent: AgentKind) {
   if (!activeTab) return;

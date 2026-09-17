@@ -205,7 +205,6 @@ are intentionally sent only after a deliberate button press.
 | `⌨` | Open the native mobile keyboard |
 | `↵` | Send Enter |
 | `␃` | Send Ctrl-C |
-| `⇄` | Toggle the mobile keyboard resize strategy |
 
 The `⋯` menu is per terminal tab:
 
@@ -259,7 +258,7 @@ reconciles those updates so a full provisional phrase is not appended multiple
 times. Input handling is shared by every terminal tab.
 
 Mobile browser keyboard and viewport behavior varies by browser and OS release.
-The `⇄` button switches between the available resize strategies when the native
+The keyboard resize strategy can be switched from the `⋯` menu when the native
 keyboard and terminal viewport do not resize cleanly.
 
 For local input troubleshooting, append `?ime-debug=1` to the application URL.
