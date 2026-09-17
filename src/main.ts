@@ -1645,6 +1645,7 @@ const agentLaunchCommands: AgentLaunchCommand[] = [
   { id: "hermes", menu: "hermes", agent: "hermes", label: "hermes", command: "hermes chat\r", description: "Start Hermes" },
   { id: "hermes-sessions", menu: "hermes", agent: "hermes", label: "hermes /sessions", command: "hermes chat\r", followup: "/sessions\r", description: "Start Hermes and browse sessions" },
   { id: "opencode", menu: "opencode", agent: "extra", label: "opencode", command: "opencode\r", description: "Start OpenCode" },
+  { id: "opencode-continue", menu: "opencode", agent: "extra", label: "opencode --continue", command: "opencode --continue\r", description: "Continue OpenCode" },
 ];
 const agentResumeButton = document.querySelector<HTMLButtonElement>("#agent-resume");
 const hermesSessionsButton = document.querySelector<HTMLButtonElement>("#hermes-sessions");
