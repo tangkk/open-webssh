@@ -1495,7 +1495,7 @@ type AgentCommand = { command: string; description: string; input?: string };
 const configurableCommands: AgentCommand[] = [
   { command: ". x2o.sh", description: "Load x2o shell configuration" },
   { command: "cd", description: "Go to the home directory" },
-  { command: "chatgpt-web", description: "Open chatgpt-web in the current shell" },
+  { command: "chatgpt-cli", description: "Open chatgpt-cli in the current shell" },
 ];
 const commonSlashCommands: AgentCommand[] = [
   { command: "/model", description: "View or switch model" },

@@ -213,7 +213,7 @@ sends the command followed by Enter:
   `/back`, `/quit`, `/status`
 - **Custom commands** (the heading starts at `exit`): `exit` (leave the current
   tmux shell), the `⇞/⇟` paging toggle, the `⇄` keyboard-resize toggle, and the
-  terminal-wide shortcuts `. x2o.sh`, `cd` and `chatgpt-web`
+  terminal-wide shortcuts `. x2o.sh`, `cd` and `chatgpt-cli`
 
 The `⇞/⇟` toggle switches paging behaviour. In the default **Shell scroll**
 mode, PageUp/PageDown send tmux mouse-wheel events inside tmux (scrolling the
