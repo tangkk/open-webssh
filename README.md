@@ -191,7 +191,7 @@ are intentionally sent only after a deliberate button press.
 | `H` | Expand Hermes commands (`hermes` and `hermes /sessions`) |
 | `O` | Expand OpenCode commands (`opencode` and `opencode --continue`) |
 | `T` | List and attach to a tmux session, create a new one, or delete an existing one; its command menu defaults to Codex |
-| `⋯` | Open one shared menu of common agent slash commands, configurable terminal shortcuts, and the ⇞/⇟ paging-mode toggle |
+| `⋯` | Open one shared menu of common agent slash commands, `exit`, the ⇞/⇟ paging and ⇄ keyboard-resize toggles, and configurable terminal shortcuts |
 | `⧉` | Copy the selected terminal text |
 | `⎘` | Paste clipboard text into the terminal |
 | `⌧` | Send `clear` |
@@ -206,33 +206,28 @@ are intentionally sent only after a deliberate button press.
 | `↵` | Send Enter |
 | `␃` | Send Ctrl-C |
 
-The `⋯` menu is per terminal tab:
+The `⋯` menu is one shared list, the same for every terminal tab and agent. It
+sends the command followed by Enter:
 
-- Codex: `/status`, `/model`, `/compact`, `/side`, `/help`
-- Hermes: `/status`, `/model`, `/sessions`, `/resume`, `/compress`, `/help`
-- Claude: `/status`, `/model`, `/compact`, `/btw`, `/help`
-- O: commands declared by that target's private `extraAgent.commands` list
+- **Common slash commands**: `/model`, `/compact`, `/sessions`, `/btw`, `/new`,
+  `/back`, `/quit`, `/status`
+- **Custom commands** (the heading starts at `exit`): `exit` (leave the current
+  tmux shell), the `⇞/⇟` paging toggle, the `⇄` keyboard-resize toggle, and the
+  terminal-wide shortcuts `. x2o.sh`, `cd` and `chatgpt-web`
 
-The menu state is inferred from the C/H/O buttons. If an agent is launched
-manually inside the shell, the menu state may remain unknown until one of those
-buttons is used.
-
-While no C/H/O agent is selected, the `⋯` menu shows the most recent commands
-typed into the shell for that SSH target, so you can re-run an earlier command
-such as `cd` with one tap. This history is tracked locally in the browser
-profile, keyed per target, and is never uploaded to the gateway.
-
-The `⋯` menu also carries a `⇞/⇟` paging toggle. In the default **Shell scroll**
+The `⇞/⇟` toggle switches paging behaviour. In the default **Shell scroll**
 mode, PageUp/PageDown send tmux mouse-wheel events inside tmux (scrolling the
 tmux scrollback) and use local scrollback elsewhere. Switching to **TUI keys**
 makes PageUp/PageDown send real PageUp/PageDown keys inside tmux as well, so an
 alternate-screen TUI such as OpenCode or Codex can page through its own output.
 The choice is remembered per browser profile.
 
-The `⋯` menu can also include terminal-wide shortcuts configured in
-`src/main.ts` through `configurableCommands`. These appear below the built-in
-entries for every shell and agent; the default shortcuts run `. x2o.sh` and, at
-the bottom of the list, `chatgpt-web`.
+The `⇄` toggle switches keyboard-resize handling between **immediate redraw**
+and **no redraw**. It is not persisted.
+
+Terminal-wide shortcuts are configured in `src/main.ts` through
+`configurableCommands`. They appear at the bottom of the menu for every shell and
+agent, so put the command you want closest to the bottom last.
 
 ### Configuring O
 
@@ -241,7 +236,7 @@ relevant private target entry; the generic schema is shown in
 [`deploy/targets.json.example`](deploy/targets.json.example). `buttonLabel`
 controls the visible key, `label` controls the accessible name, and
 `launchCommand` starts the tool. Its configured commands are launched by the O
-agent itself; the shared `⋯` menu only contains the common slash commands.
+agent itself; the shared `⋯` menu does not include them.
 Set `launchCommand` to the tool's own resume/continue invocation when O should
 reopen the most recent session instead of starting a new one.
 

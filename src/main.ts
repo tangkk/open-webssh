@@ -1490,24 +1490,24 @@ bindControlKey("#arrow-up", "\u001b[A");
 bindControlKey("#arrow-down", "\u001b[B");
 bindControlKey("#enter-key", "\r");
 type AgentCommand = { command: string; description: string; input?: string };
-// Add terminal shortcuts here. They are shown below the built-in menu entries
-// regardless of which shell or agent is currently active.
+// Add terminal shortcuts here. They are shown at the bottom of the menu, under
+// the "Custom commands" heading, regardless of which shell or agent is active.
 const configurableCommands: AgentCommand[] = [
   { command: ". x2o.sh", description: "Load x2o shell configuration" },
+  { command: "cd", description: "Go to the home directory" },
   { command: "chatgpt-web", description: "Open chatgpt-web in the current shell" },
 ];
 const commonSlashCommands: AgentCommand[] = [
   { command: "/model", description: "View or switch model" },
   { command: "/compact", description: "Compact the current context" },
   { command: "/sessions", description: "Browse past sessions" },
-  { command: "/resume", description: "Resume a past session" },
   { command: "/btw", description: "Ask a side question outside the conversation" },
   { command: "/new", description: "Start a new session" },
   { command: "/back", description: "Go back to the previous step" },
   { command: "/quit", description: "Quit the current agent" },
   { command: "/status", description: "Session, model, and context" },
-  { command: "exit", description: "Exit the current tmux shell", input: "exit\r" },
 ];
+const shellExitCommand: AgentCommand = { command: "exit", description: "Exit the current tmux shell", input: "exit\r" };
 const agentCommandsButton = document.querySelector<HTMLButtonElement>("#agent-commands");
 const agentCommandMenu = document.querySelector<HTMLElement>("#agent-command-menu");
 const PAGE_SCROLL_STORAGE_KEY = "webssh.pageScroll.v1";
@@ -1560,24 +1560,18 @@ function keyboardFitModeItem(): HTMLButtonElement {
   });
   return button;
 }
-function configurableCommandItems(): HTMLElement[] {
-  if (configurableCommands.length === 0) return [];
-  const heading = document.createElement("div");
-  heading.className = "slash-menu-heading";
-  heading.textContent = "Custom commands";
-  const items = configurableCommands.map(({ command, description }) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.setAttribute("role", "menuitem");
-    button.dataset.command = command;
-    const code = document.createElement("code");
-    code.textContent = command;
-    const detail = document.createElement("small");
-    detail.textContent = description;
-    button.append(code, detail);
-    return button;
-  });
-  return [heading, ...items];
+function commandMenuItem({ command, description, input }: AgentCommand): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.setAttribute("role", "menuitem");
+  button.dataset.command = command;
+  if (input !== undefined) button.dataset.input = input;
+  const code = document.createElement("code");
+  code.textContent = command;
+  const detail = document.createElement("small");
+  detail.textContent = description;
+  button.append(code, detail);
+  return button;
 }
 function setAgentCommandMenu(open: boolean) {
   if (!agentCommandMenu || !agentCommandsButton) return;
@@ -1594,20 +1588,18 @@ function renderAgentCommandMenu() {
   const heading = document.createElement("div");
   heading.className = "slash-menu-heading";
   heading.textContent = "Common slash commands";
-  const items = commonSlashCommands.map(({ command, description, input }) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.setAttribute("role", "menuitem");
-    button.dataset.command = command;
-    if (input !== undefined) button.dataset.input = input;
-    const code = document.createElement("code");
-    code.textContent = command;
-    const detail = document.createElement("small");
-    detail.textContent = description;
-    button.append(code, detail);
-    return button;
-  });
-  agentCommandMenu.replaceChildren(heading, ...items, pageScrollModeItem(), keyboardFitModeItem(), ...configurableCommandItems());
+  const customHeading = document.createElement("div");
+  customHeading.className = "slash-menu-heading";
+  customHeading.textContent = "Custom commands";
+  agentCommandMenu.replaceChildren(
+    heading,
+    ...commonSlashCommands.map(commandMenuItem),
+    customHeading,
+    commandMenuItem(shellExitCommand),
+    pageScrollModeItem(),
+    keyboardFitModeItem(),
+    ...configurableCommands.map(commandMenuItem),
+  );
 }
 function setActiveAgent(agent: AgentKind) {
   if (!activeTab) return;
