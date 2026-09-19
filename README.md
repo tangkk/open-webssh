@@ -231,7 +231,8 @@ The choice is remembered per browser profile.
 
 The `⋯` menu can also include terminal-wide shortcuts configured in
 `src/main.ts` through `configurableCommands`. These appear below the built-in
-entries for every shell and agent; the default shortcut runs `. x2o.sh`.
+entries for every shell and agent; the default shortcuts run `. x2o.sh` and, at
+the bottom of the list, `chatgpt-web`.
 
 ### Configuring O
 

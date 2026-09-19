@@ -1494,6 +1494,7 @@ type AgentCommand = { command: string; description: string; input?: string };
 // regardless of which shell or agent is currently active.
 const configurableCommands: AgentCommand[] = [
   { command: ". x2o.sh", description: "Load x2o shell configuration" },
+  { command: "chatgpt-web", description: "Open chatgpt-web in the current shell" },
 ];
 const commonSlashCommands: AgentCommand[] = [
   { command: "/status", description: "Session, model, and context" },
