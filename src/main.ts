@@ -1497,15 +1497,15 @@ const configurableCommands: AgentCommand[] = [
   { command: "chatgpt-web", description: "Open chatgpt-web in the current shell" },
 ];
 const commonSlashCommands: AgentCommand[] = [
-  { command: "/status", description: "Session, model, and context" },
   { command: "/model", description: "View or switch model" },
   { command: "/compact", description: "Compact the current context" },
-  { command: "/compress", description: "Compress the current context" },
   { command: "/sessions", description: "Browse past sessions" },
   { command: "/resume", description: "Resume a past session" },
-  { command: "/side", description: "Start a side chat without interrupting the main chat" },
   { command: "/btw", description: "Ask a side question outside the conversation" },
-  { command: "/help", description: "Show available commands" },
+  { command: "/new", description: "Start a new session" },
+  { command: "/back", description: "Go back to the previous step" },
+  { command: "/quit", description: "Quit the current agent" },
+  { command: "/status", description: "Session, model, and context" },
   { command: "exit", description: "Exit the current tmux shell", input: "exit\r" },
 ];
 const agentCommandsButton = document.querySelector<HTMLButtonElement>("#agent-commands");
