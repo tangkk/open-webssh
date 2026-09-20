@@ -1493,7 +1493,7 @@ type AgentCommand = { command: string; description: string; input?: string };
 // Add terminal shortcuts here. They are shown at the bottom of the menu, under
 // the "Custom commands" heading, regardless of which shell or agent is active.
 const configurableCommands: AgentCommand[] = [
-  { command: ". x2o.sh", description: "Load x2o shell configuration" },
+  { command: ". x2o.sh", description: "Load x2o" },
   { command: "cd", description: "Go to the home directory" },
   { command: "chatgpt-cli", description: "Open chatgpt-cli in the current shell" },
 ];
@@ -1712,7 +1712,7 @@ function shellQuote(value: string) {
 }
 function nextAvailableTmuxSessionName(sessions: TmuxSession[]) {
   const usedNames = new Set(sessions.map((session) => session.name));
-  let suggestedName = 1;
+  let suggestedName = 0;
   while (usedNames.has(String(suggestedName))) suggestedName += 1;
   return String(suggestedName);
 }
