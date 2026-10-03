@@ -59,6 +59,19 @@ const heartbeatTimeoutMs = integerSetting("WS_HEARTBEAT_TIMEOUT_MS", 180_000, he
 // don't pile up indefinitely; OpenSSH tears down the master itself on expiry.
 const controlPersistSeconds = integerSetting("SSH_CONTROL_PERSIST_SECONDS", 60, 10, 600);
 const controlSocketDir = join(tmpdir(), "webssh-control");
+// Short-lived cache of the last listing *result* per target (shared across
+// every device/connection, not per-fingerprint -- a target's session list is
+// the same fact regardless of who's asking). ControlMaster reuse (above)
+// still pays for one round trip to actually run `tmux list-sessions` and get
+// the output back -- for the "mac-primary" target that round trip crosses
+// the M1<->V1 reverse tunnel, which is a direct, non-Cloudflare-fronted
+// connection and can itself be slow on a bad link. A cache hit skips that
+// round trip entirely. Short TTL trades a few seconds of possible staleness
+// (a session created/killed moments ago might not show up immediately) for
+// near-instant repeat listings, e.g. reopening the page shortly after the
+// first load, or the normal two-targets-at-once discovery on page load.
+const tmuxSessionCacheMs = integerSetting("TMUX_SESSION_CACHE_MS", 3_000, 0, 30_000);
+const tmuxSessionCache = new Map<string, { sessions: TmuxSession[]; expiresAt: number }>();
 const distDirectory = resolve(process.cwd(), "dist");
 let activeConnections = 0;
 let targets: Target[] = [];
@@ -300,7 +313,7 @@ function controlMasterArgs(controlPath: string): string[] {
   ];
 }
 
-function listTmuxSessions(agentSocket: string, target: Target, strictHostKeyArgs: string[], controlPath: string): Promise<TmuxSession[]> {
+function fetchTmuxSessions(agentSocket: string, target: Target, strictHostKeyArgs: string[], controlPath: string): Promise<TmuxSession[]> {
   const args = [
     "-T",
     "-p", String(target.port),
@@ -336,6 +349,14 @@ function listTmuxSessions(agentSocket: string, target: Target, strictHostKeyArgs
       }));
     });
   });
+}
+
+async function listTmuxSessions(agentSocket: string, target: Target, strictHostKeyArgs: string[], controlPath: string): Promise<TmuxSession[]> {
+  const cached = tmuxSessionCache.get(target.id);
+  if (cached && cached.expiresAt > Date.now()) return cached.sessions;
+  const sessions = await fetchTmuxSessions(agentSocket, target, strictHostKeyArgs, controlPath);
+  tmuxSessionCache.set(target.id, { sessions, expiresAt: Date.now() + tmuxSessionCacheMs });
+  return sessions;
 }
 
 websocketServer.on("connection", (websocket) => {
