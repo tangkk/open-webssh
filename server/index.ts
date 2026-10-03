@@ -2,7 +2,7 @@ import express from "express";
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import process from "node:process";
@@ -72,6 +72,14 @@ const controlSocketDir = join(tmpdir(), "webssh-control");
 // first load, or the normal two-targets-at-once discovery on page load.
 const tmuxSessionCacheMs = integerSetting("TMUX_SESSION_CACHE_MS", 3_000, 0, 30_000);
 const tmuxSessionCache = new Map<string, { sessions: TmuxSession[]; expiresAt: number }>();
+// Opportunistically keeps the cache above warm in the background -- but only
+// by reusing a ControlMaster that already exists (see hasLiveMaster below).
+// Never establishes a new connection itself: that needs a signing round trip
+// to a browser, and this timer runs independent of any browser being open.
+// If nobody has used a target recently enough to have a live master, the
+// target is just skipped for that tick; the next real request falls back to
+// the normal cold-start path, same as if this polling didn't exist at all.
+const tmuxPollIntervalMs = integerSetting("TMUX_POLL_INTERVAL_MS", 5_000, 1_000, 60_000);
 const distDirectory = resolve(process.cwd(), "dist");
 let activeConnections = 0;
 let targets: Target[] = [];
@@ -313,7 +321,16 @@ function controlMasterArgs(controlPath: string): string[] {
   ];
 }
 
-function fetchTmuxSessions(agentSocket: string, target: Target, strictHostKeyArgs: string[], controlPath: string): Promise<TmuxSession[]> {
+function parseTmuxSessionOutput(stdout: string): TmuxSession[] {
+  return stdout.split(/\r?\n/).flatMap((line) => {
+    if (!line.startsWith(tmuxSessionMarker)) return [];
+    const [name, windows, attached] = line.slice(tmuxSessionMarker.length).split(tmuxFieldMarker);
+    if (!name || windows === undefined || attached === undefined) return [];
+    return [{ name, windows: Number.parseInt(windows, 10) || 0, attached: attached === "1" }];
+  });
+}
+
+function fetchTmuxSessions(target: Target, strictHostKeyArgs: string[], controlArgs: string[], agentSocket?: string): Promise<TmuxSession[]> {
   const args = [
     "-T",
     "-p", String(target.port),
@@ -322,14 +339,14 @@ function fetchTmuxSessions(agentSocket: string, target: Target, strictHostKeyArg
     "-o", "KbdInteractiveAuthentication=no",
     "-o", "ForwardAgent=no",
     "-o", "ConnectTimeout=8",
-    ...controlMasterArgs(controlPath),
+    ...controlArgs,
     ...strictHostKeyArgs,
     `${target.user}@${target.host}`,
     `${shellQuote(target.tmuxBin || "tmux")} list-sessions -F '${tmuxSessionMarker}#{session_name}${tmuxFieldMarker}#{session_windows}${tmuxFieldMarker}#{session_attached}'`,
   ];
   return new Promise((resolve, reject) => {
     execFile("ssh", args, {
-      env: { ...process.env, SSH_AUTH_SOCK: agentSocket },
+      env: agentSocket ? { ...process.env, SSH_AUTH_SOCK: agentSocket } : process.env,
       timeout: 15_000,
       maxBuffer: 64 * 1024,
     }, (error, stdout, stderr) => {
@@ -341,12 +358,7 @@ function fetchTmuxSessions(agentSocket: string, target: Target, strictHostKeyArg
         reject(error);
         return;
       }
-      resolve(stdout.split(/\r?\n/).flatMap((line) => {
-        if (!line.startsWith(tmuxSessionMarker)) return [];
-        const [name, windows, attached] = line.slice(tmuxSessionMarker.length).split(tmuxFieldMarker);
-        if (!name || windows === undefined || attached === undefined) return [];
-        return [{ name, windows: Number.parseInt(windows, 10) || 0, attached: attached === "1" }];
-      }));
+      resolve(parseTmuxSessionOutput(stdout));
     });
   });
 }
@@ -354,9 +366,52 @@ function fetchTmuxSessions(agentSocket: string, target: Target, strictHostKeyArg
 async function listTmuxSessions(agentSocket: string, target: Target, strictHostKeyArgs: string[], controlPath: string): Promise<TmuxSession[]> {
   const cached = tmuxSessionCache.get(target.id);
   if (cached && cached.expiresAt > Date.now()) return cached.sessions;
-  const sessions = await fetchTmuxSessions(agentSocket, target, strictHostKeyArgs, controlPath);
+  const sessions = await fetchTmuxSessions(target, strictHostKeyArgs, controlMasterArgs(controlPath), agentSocket);
   tmuxSessionCache.set(target.id, { sessions, expiresAt: Date.now() + tmuxSessionCacheMs });
   return sessions;
+}
+
+function strictHostKeyArgsFor(target: Target): string[] {
+  return ["-o", "StrictHostKeyChecking=yes", "-o", `UserKnownHostsFile=${target.knownHostsFile}`];
+}
+
+// Finds any already-live ControlMaster for this target (any device's, not a
+// specific one -- the session list doesn't depend on who's asking) and, if
+// found, refreshes the shared cache through it. ControlMaster=no here is
+// deliberate: unlike controlMasterArgs' "auto", this must never authenticate
+// a fresh connection, only ride one that already exists.
+async function refreshFromLiveMasterIfAny(target: Target): Promise<void> {
+  let entries: string[];
+  try {
+    entries = await readdir(controlSocketDir);
+  } catch {
+    return;
+  }
+  const suffix = `-${target.id}.sock`;
+  for (const entry of entries) {
+    if (!entry.endsWith(suffix)) continue;
+    const controlPath = join(controlSocketDir, entry);
+    try {
+      const sessions = await fetchTmuxSessions(target, strictHostKeyArgsFor(target), [
+        "-o", "ControlMaster=no",
+        "-o", `ControlPath=${controlPath}`,
+        "-o", "ConnectTimeout=3",
+      ]);
+      tmuxSessionCache.set(target.id, { sessions, expiresAt: Date.now() + tmuxSessionCacheMs });
+      return;
+    } catch {
+      // This particular socket is stale/dead (e.g. ControlPersist just expired
+      // mid-poll) or the target is otherwise unreachable through it right
+      // now -- try any other live master for this target, if there is one.
+    }
+  }
+}
+
+function pollTmuxSessionsOpportunistically(): void {
+  for (const target of targets) {
+    if (!target.capabilities?.tmux) continue;
+    void refreshFromLiveMasterIfAny(target);
+  }
 }
 
 websocketServer.on("connection", (websocket) => {
@@ -537,6 +592,9 @@ loadTargets()
   .then(validateProductionConfiguration)
   .then(ensureControlSocketDir)
   .then(() => {
+    const pollTimer = setInterval(pollTmuxSessionsOpportunistically, tmuxPollIntervalMs);
+    pollTimer.unref();
+    server.once("close", () => clearInterval(pollTimer));
     server.listen(port, "127.0.0.1", () => {
       console.log(`WebSSH listening on http://127.0.0.1:${port}`);
     });
