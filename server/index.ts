@@ -503,7 +503,8 @@ websocketServer.on("connection", (websocket) => {
           try {
             const sessions = await listTmuxSessions(agentSocket, target, strictHostKeyArgs, controlPath);
             send(websocket, { type: "tmux_sessions", sessions });
-          } catch {
+          } catch (error) {
+            console.error(`listTmuxSessions failed for target ${target.id}:`, error);
             send(websocket, { type: "tmux_sessions", sessions: [], error: "Unable to list tmux sessions" });
           }
           return;
@@ -569,7 +570,8 @@ websocketServer.on("connection", (websocket) => {
       try {
         const sessions = await listTmuxSessions(agentSocket, target, strictHostKeyArgs, controlPath);
         send(websocket, { type: "tmux_sessions", sessions });
-      } catch {
+      } catch (error) {
+        console.error(`listTmuxSessions failed for target ${target.id}:`, error);
         send(websocket, { type: "tmux_sessions", sessions: [], error: "Unable to list tmux sessions" });
       }
     } else if (message.type === "extra_agent_launch" && terminal && target?.extraAgent && target.capabilities?.agents) {
