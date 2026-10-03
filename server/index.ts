@@ -514,6 +514,16 @@ websocketServer.on("connection", (websocket) => {
           websocket.close(1008);
           return;
         }
+        // Deliberately NOT using ControlMaster here: this is a long-lived,
+        // stateful interactive session (or one of several restored at once),
+        // not a short one-shot command. Multiplexing it onto a shared master
+        // caused tabs to unexpectedly pop back out after 1-2 minutes
+        // (matching controlPersistSeconds) and made restoring several tabs
+        // at once unreliable -- almost certainly several clients racing to
+        // attach to / become the same master. ControlMaster reuse stays
+        // scoped to the one-shot listTmuxSessions path, where it's been
+        // solid, and the opportunistic background poll, which only ever
+        // rides a master one of those one-shot calls already created.
         const args = [
           "-tt",
           "-p", String(target.port),
@@ -523,7 +533,6 @@ websocketServer.on("connection", (websocket) => {
           "-o", "ForwardAgent=no",
           "-o", "ServerAliveInterval=30",
           "-o", "ServerAliveCountMax=3",
-          ...controlMasterArgs(controlPath),
           ...strictHostKeyArgs,
           `${target.user}@${target.host}`,
         ];
