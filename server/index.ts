@@ -2,7 +2,7 @@ import express from "express";
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import process from "node:process";
@@ -49,6 +49,16 @@ const helloTimeoutMs = integerSetting("AUTH_HELLO_TIMEOUT_MS", 15_000, 1_000, 12
 const signatureTimeoutMs = integerSetting("AUTH_SIGNATURE_TIMEOUT_MS", 30_000, 5_000, 300_000);
 const heartbeatIntervalMs = integerSetting("WS_HEARTBEAT_INTERVAL_MS", 30_000, 5_000, 300_000);
 const heartbeatTimeoutMs = integerSetting("WS_HEARTBEAT_TIMEOUT_MS", 180_000, heartbeatIntervalMs * 2, 900_000);
+// How long an authenticated SSH connection to a target stays warm in the
+// background (via OpenSSH ControlMaster/ControlPersist) after the browser
+// tab/request that opened it goes away. Every *new* SSH connection needs a
+// signing round trip to the browser (the private key never leaves it), which
+// gets expensive under high-latency links; reusing a persisted connection for
+// "list sessions" or opening another tab against the same target skips that
+// round trip entirely. Bounded low enough that stale authenticated sockets
+// don't pile up indefinitely; OpenSSH tears down the master itself on expiry.
+const controlPersistSeconds = integerSetting("SSH_CONTROL_PERSIST_SECONDS", 60, 10, 600);
+const controlSocketDir = join(tmpdir(), "webssh-control");
 const distDirectory = resolve(process.cwd(), "dist");
 let activeConnections = 0;
 let targets: Target[] = [];
@@ -264,7 +274,33 @@ function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\\"'\\\"'")}'`;
 }
 
-function listTmuxSessions(agentSocket: string, target: Target, strictHostKeyArgs: string[]): Promise<TmuxSession[]> {
+async function ensureControlSocketDir(): Promise<void> {
+  await mkdir(controlSocketDir, { recursive: true, mode: 0o700 });
+}
+
+// One persisted master connection per (device, target): keyed off the
+// device's key fingerprint (stable across reconnects/tabs for the same
+// browser) and the target id. Hashed+truncated because AF_UNIX socket paths
+// are limited to ~100 bytes and the fingerprint itself is a base64 SHA-256.
+function controlPathFor(fingerprint: string, target: Target): string {
+  const digest = createHash("sha256").update(fingerprint).digest("hex").slice(0, 16);
+  return join(controlSocketDir, `${digest}-${target.id}.sock`);
+}
+
+// Shared by every ssh invocation below. With ControlMaster=auto, OpenSSH
+// transparently reuses an existing live master on controlPath (no auth
+// round trip at all, the agent sits unused) or, if none exists, authenticates
+// normally (agent round trip as before) and leaves itself running in the
+// background as the new master for controlPersistSeconds.
+function controlMasterArgs(controlPath: string): string[] {
+  return [
+    "-o", "ControlMaster=auto",
+    "-o", `ControlPersist=${controlPersistSeconds}s`,
+    "-o", `ControlPath=${controlPath}`,
+  ];
+}
+
+function listTmuxSessions(agentSocket: string, target: Target, strictHostKeyArgs: string[], controlPath: string): Promise<TmuxSession[]> {
   const args = [
     "-T",
     "-p", String(target.port),
@@ -273,6 +309,7 @@ function listTmuxSessions(agentSocket: string, target: Target, strictHostKeyArgs
     "-o", "KbdInteractiveAuthentication=no",
     "-o", "ForwardAgent=no",
     "-o", "ConnectTimeout=8",
+    ...controlMasterArgs(controlPath),
     ...strictHostKeyArgs,
     `${target.user}@${target.host}`,
     `${shellQuote(target.tmuxBin || "tmux")} list-sessions -F '${tmuxSessionMarker}#{session_name}${tmuxFieldMarker}#{session_windows}${tmuxFieldMarker}#{session_attached}'`,
@@ -310,6 +347,7 @@ websocketServer.on("connection", (websocket) => {
   let temporaryDirectory: string | undefined;
   let agentSocket: string | undefined;
   let strictHostKeyArgs: string[] = [];
+  let controlPath: string | undefined;
   let target: Target | undefined;
   let initialized = false;
   let authenticationTimer: NodeJS.Timeout | undefined;
@@ -373,6 +411,7 @@ websocketServer.on("connection", (websocket) => {
         websocket.close(1008);
         return;
       }
+      controlPath = controlPathFor(fingerprint, target);
 
       try {
         temporaryDirectory = await mkdtemp(join(tmpdir(), "webssh-"));
@@ -386,7 +425,7 @@ websocketServer.on("connection", (websocket) => {
             return;
           }
           try {
-            const sessions = await listTmuxSessions(agentSocket, target, strictHostKeyArgs);
+            const sessions = await listTmuxSessions(agentSocket, target, strictHostKeyArgs, controlPath);
             send(websocket, { type: "tmux_sessions", sessions });
           } catch {
             send(websocket, { type: "tmux_sessions", sessions: [], error: "Unable to list tmux sessions" });
@@ -408,6 +447,7 @@ websocketServer.on("connection", (websocket) => {
           "-o", "ForwardAgent=no",
           "-o", "ServerAliveInterval=30",
           "-o", "ServerAliveCountMax=3",
+          ...controlMasterArgs(controlPath),
           ...strictHostKeyArgs,
           `${target.user}@${target.host}`,
         ];
@@ -440,9 +480,9 @@ websocketServer.on("connection", (websocket) => {
 
     if (message.type === "sign_response") {
       agent?.receiveSignature(message.id, message.signature, message.error);
-    } else if (message.type === "tmux_sessions" && agentSocket && terminal && target?.capabilities?.tmux) {
+    } else if (message.type === "tmux_sessions" && agentSocket && terminal && controlPath && target?.capabilities?.tmux) {
       try {
-        const sessions = await listTmuxSessions(agentSocket, target, strictHostKeyArgs);
+        const sessions = await listTmuxSessions(agentSocket, target, strictHostKeyArgs, controlPath);
         send(websocket, { type: "tmux_sessions", sessions });
       } catch {
         send(websocket, { type: "tmux_sessions", sessions: [], error: "Unable to list tmux sessions" });
@@ -474,6 +514,7 @@ websocketServer.on("connection", (websocket) => {
 
 loadTargets()
   .then(validateProductionConfiguration)
+  .then(ensureControlSocketDir)
   .then(() => {
     server.listen(port, "127.0.0.1", () => {
       console.log(`WebSSH listening on http://127.0.0.1:${port}`);
