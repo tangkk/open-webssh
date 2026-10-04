@@ -316,12 +316,30 @@ function controlPathFor(fingerprint: string, target: Target): string {
 // round trip at all, the agent sits unused) or, if none exists, authenticates
 // normally (agent round trip as before) and leaves itself running in the
 // background as the new master for controlPersistSeconds.
+// ServerAlive* only takes effect on the invocation that becomes the master,
+// which is exactly where it's needed: the background poll keeps a master in
+// use every few seconds, so ControlPersist alone never retires it. Without a
+// keepalive, a master whose underlying connection silently died (e.g. the
+// M1 reverse tunnel on 22022 reconnected underneath it) stays "alive" to
+// -O check while every multiplexed client hangs until its timeout.
 function controlMasterArgs(controlPath: string): string[] {
   return [
     "-o", "ControlMaster=auto",
     "-o", `ControlPersist=${controlPersistSeconds}s`,
     "-o", `ControlPath=${controlPath}`,
+    "-o", "ServerAliveInterval=10",
+    "-o", "ServerAliveCountMax=2",
   ];
+}
+
+// Tears down a master after a listing through it failed, so the next request
+// re-establishes a fresh connection instead of hanging on the same broken one.
+// The master answers -O exit on its control socket even when its network
+// connection is wedged; if there's no master at all this is a harmless no-op.
+function closeMaster(controlPath: string): Promise<void> {
+  return new Promise((resolve) => {
+    execFile("ssh", ["-o", `ControlPath=${controlPath}`, "-O", "exit", "webssh-master"], { timeout: 5_000 }, () => resolve());
+  });
 }
 
 function parseTmuxSessionOutput(stdout: string): TmuxSession[] {
@@ -333,7 +351,7 @@ function parseTmuxSessionOutput(stdout: string): TmuxSession[] {
   });
 }
 
-function fetchTmuxSessions(target: Target, strictHostKeyArgs: string[], controlArgs: string[], agentSocket?: string): Promise<TmuxSession[]> {
+function fetchTmuxSessions(target: Target, strictHostKeyArgs: string[], controlArgs: string[], agentSocket?: string, timeoutMs = 35_000): Promise<TmuxSession[]> {
   const args = [
     "-T",
     "-p", String(target.port),
@@ -350,7 +368,7 @@ function fetchTmuxSessions(target: Target, strictHostKeyArgs: string[], controlA
   return new Promise((resolve, reject) => {
     execFile("ssh", args, {
       env: agentSocket ? { ...process.env, SSH_AUTH_SOCK: agentSocket } : process.env,
-      timeout: 35_000,
+      timeout: timeoutMs,
       maxBuffer: 64 * 1024,
     }, (error, stdout, stderr) => {
       if (error) {
@@ -374,6 +392,7 @@ async function listTmuxSessions(agentSocket: string, target: Target, strictHostK
     tmuxSessionCache.set(target.id, { sessions, expiresAt: Date.now() + tmuxSessionCacheMs });
     return { sessions };
   } catch (error) {
+    await closeMaster(controlPath);
     if (cached && cached.expiresAt + tmuxStaleCacheMs > Date.now()) {
       console.warn(`listTmuxSessions using cached result for target ${target.id}:`, error);
       return { sessions: cached.sessions, stale: true };
@@ -413,17 +432,18 @@ async function refreshFromLiveMaster(target: Target): Promise<void> {
     if (!entry.endsWith(suffix)) continue;
     const controlPath = join(controlSocketDir, entry);
     try {
+      // Short timeout: a healthy master answers a list-sessions in well under
+      // a second, so anything slower means it's wedged -- kill it now rather
+      // than let the next real request hang on it.
       const sessions = await fetchTmuxSessions(target, strictHostKeyArgsFor(target), [
         "-o", "ControlMaster=no",
         "-o", `ControlPath=${controlPath}`,
         "-o", "ConnectTimeout=3",
-      ]);
+      ], undefined, 8_000);
       tmuxSessionCache.set(target.id, { sessions, expiresAt: Date.now() + tmuxSessionCacheMs });
       return;
     } catch {
-      // This particular socket is stale/dead (e.g. ControlPersist just expired
-      // mid-poll) or the target is otherwise unreachable through it right
-      // now -- try any other live master for this target, if there is one.
+      await closeMaster(controlPath);
     }
   }
 }
