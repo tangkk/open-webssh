@@ -14,7 +14,7 @@ type ServerMessage =
   | { type: "status"; status: "connecting" | "connected" | "closed"; message?: string }
   | { type: "output"; data: string }
   | { type: "sign_request"; id: string; data: string }
-  | { type: "tmux_sessions"; sessions: TmuxSession[]; error?: string }
+  | { type: "tmux_sessions"; sessions: TmuxSession[]; error?: string; stale?: boolean }
   | { type: "error"; message: string };
 
 type TmuxSession = { name: string; windows: number; attached: boolean };
@@ -841,6 +841,8 @@ function applyTheme(themeName: ThemeName) {
 }
 
 function activateTab(tab: TerminalTab, connectIfNeeded = true) {
+  const hadTerminalFocus = activeTab !== tab && document.activeElement === terminalInput;
+  if (hadTerminalFocus) terminalInput?.blur();
   if (inertiaFrame !== undefined) cancelAnimationFrame(inertiaFrame);
   inertiaFrame = undefined;
   if (longPressTimer !== undefined) clearTimeout(longPressTimer);
@@ -881,7 +883,11 @@ function activateTab(tab: TerminalTab, connectIfNeeded = true) {
     tab.fit.fit();
     connectTab(tab);
   }
-  if (!isMobileDevice) terminal.focus();
+  if (!isMobileDevice || hadTerminalFocus) {
+    if (isMobileDevice) allowTerminalFocus = true;
+    terminal.focus();
+    if (isMobileDevice) window.setTimeout(() => { allowTerminalFocus = false; }, 0);
+  }
 }
 
 function createAdditionalTab(target: TargetDescriptor, tmuxSession?: string, tmuxNewSession = false) {
@@ -920,7 +926,7 @@ function connectTab(tab: TerminalTab) {
       return;
     }
     if (message.type === "output") queueTerminalOutput(tab, base64ToBytes(message.data));
-    if (message.type === "tmux_sessions" && tab === activeTab) renderTmuxSessionMenu(message.sessions, message.error);
+    if (message.type === "tmux_sessions" && tab === activeTab) renderTmuxSessionMenu(message.sessions, message.error, message.stale);
     if (message.type === "error") {
       tab.connectionState = "closed";
       tab.statusMessage = message.message;
@@ -1230,7 +1236,7 @@ function connect(tmuxSession?: string) {
       return;
     }
     if (message.type === "tmux_sessions") {
-      renderTmuxSessionMenu(message.sessions, message.error);
+      renderTmuxSessionMenu(message.sessions, message.error, message.stale);
       return;
     }
     if (message.type === "error") {
@@ -1283,7 +1289,7 @@ function connect(tmuxSession?: string) {
   });
 }
 
-function renderOnboardingTmuxSessions(sessions?: TmuxSession[], error?: string) {
+function renderOnboardingTmuxSessions(sessions?: TmuxSession[], error?: string, stale = false) {
   const target = targetForId(selectedTargetId);
   onboardingTmux.hidden = !target?.capabilities.tmux;
   if (!target?.capabilities.tmux) {
@@ -1298,11 +1304,11 @@ function renderOnboardingTmuxSessions(sessions?: TmuxSession[], error?: string) 
   }
   if (error || sessions.length === 0) {
     const empty = document.createElement("small");
-    empty.textContent = error || "No running tmux sessions";
+    empty.textContent = error || (stale ? "Last known list has no sessions · Refresh to retry" : "No running tmux sessions");
     onboardingTmuxList.replaceChildren(empty);
     return;
   }
-  onboardingTmuxList.replaceChildren(...sessions.map((session) => {
+  const items = sessions.map((session) => {
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.onboardingTmuxSession = session.name;
@@ -1312,7 +1318,12 @@ function renderOnboardingTmuxSessions(sessions?: TmuxSession[], error?: string) 
     detail.textContent = `${session.windows} window${session.windows === 1 ? "" : "s"}${session.attached ? " · attached" : ""}`;
     button.append(name, detail);
     return button;
-  }));
+  });
+  if (stale) {
+    const warning = document.createElement("small");
+    warning.textContent = "Showing last known sessions · Refresh to retry";
+    onboardingTmuxList.replaceChildren(warning, ...items);
+  } else onboardingTmuxList.replaceChildren(...items);
 }
 
 function loadOnboardingTmuxSessions() {
@@ -1349,7 +1360,7 @@ function loadOnboardingTmuxSessions() {
     }
     if (request !== onboardingSessionsRequest) return;
     if (message.type === "tmux_sessions") {
-      renderOnboardingTmuxSessions(message.sessions, message.error);
+      renderOnboardingTmuxSessions(message.sessions, message.error, message.stale);
       discoverySocket.close();
     } else if (message.type === "error") {
       renderOnboardingTmuxSessions([], message.message);
@@ -1380,7 +1391,7 @@ function restorePreviousTabs() {
   rest.forEach(({ entry, target }) => createAdditionalTab(target, entry.tmuxSession));
 }
 
-function renderTargetMenuTmuxSessions(target: TargetDescriptor, sessions: TmuxSession[], error?: string) {
+function renderTargetMenuTmuxSessions(target: TargetDescriptor, sessions: TmuxSession[], error?: string, stale = false) {
   const list = Array.from(targetMenu.querySelectorAll<HTMLElement>("[data-target-tmux-list]"))
     .find((candidate) => candidate.dataset.targetTmuxList === target.id);
   if (!list) return;
@@ -1392,6 +1403,11 @@ function renderTargetMenuTmuxSessions(target: TargetDescriptor, sessions: TmuxSe
   newButton.dataset.targetTmuxNew = nextName;
   newButton.textContent = `+ New tmux session (${nextName})`;
   const items: HTMLElement[] = [newButton];
+  if (stale) {
+    const warning = document.createElement("small");
+    warning.textContent = "Last known sessions · connection unavailable";
+    items.push(warning);
+  }
   if (error || sessions.length === 0) {
     const status = document.createElement("small");
     status.textContent = error || "No running sessions";
@@ -1438,7 +1454,7 @@ function loadTargetMenuTmuxSessions() {
       }
       if (request !== targetMenuSessionsRequest) return;
       if (message.type === "tmux_sessions") {
-        renderTargetMenuTmuxSessions(target, message.sessions, message.error);
+        renderTargetMenuTmuxSessions(target, message.sessions, message.error, message.stale);
         discoverySocket.close();
       } else if (message.type === "error") {
         renderTargetMenuTmuxSessions(target, [], message.message);
@@ -1746,7 +1762,7 @@ function deleteTmuxSession(sessionName: string) {
   renderTmuxSessionMenu();
   window.setTimeout(() => send({ type: "tmux_sessions" }), 400);
 }
-function renderTmuxSessionMenu(sessions?: TmuxSession[], error?: string) {
+function renderTmuxSessionMenu(sessions?: TmuxSession[], error?: string, stale = false) {
   if (!tmuxSessionMenu) return;
   const heading = document.createElement("div");
   heading.className = "slash-menu-heading";
@@ -1771,7 +1787,13 @@ function renderTmuxSessionMenu(sessions?: TmuxSession[], error?: string) {
     return;
   }
   latestTmuxSessions = sessions;
-  const items: HTMLElement[] = sessions.map((session) => {
+  const items: HTMLElement[] = [];
+  if (stale) {
+    const warning = document.createElement("small");
+    warning.textContent = "Last known sessions · connection unavailable";
+    items.push(warning);
+  }
+  items.push(...sessions.map((session) => {
     const row = document.createElement("div");
     row.className = "tmux-session-row";
     const button = document.createElement("button");
@@ -1790,8 +1812,8 @@ function renderTmuxSessionMenu(sessions?: TmuxSession[], error?: string) {
     deleteButton.textContent = "✕";
     row.append(button, deleteButton);
     return row;
-  });
-  if (items.length === 0) {
+  }));
+  if (sessions.length === 0) {
     const empty = document.createElement("button");
     empty.type = "button";
     empty.disabled = true;

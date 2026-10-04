@@ -20,6 +20,7 @@ type ClientMessage =
   | { type: "extra_agent_command"; id: string };
 
 type TmuxSession = { name: string; windows: number; attached: boolean };
+type TmuxListing = { sessions: TmuxSession[]; stale?: boolean };
 type TargetCapabilities = { tmux?: boolean; agents?: boolean };
 type ExtraAgentCommand = { id: string; label: string; description: string; command: string };
 type ExtraAgent = { buttonLabel: string; label: string; launchCommand: string; commands: ExtraAgentCommand[] };
@@ -72,6 +73,7 @@ const controlSocketDir = join(tmpdir(), "webssh-control");
 // first load, or the normal two-targets-at-once discovery on page load.
 const tmuxSessionCacheMs = integerSetting("TMUX_SESSION_CACHE_MS", 3_000, 0, 30_000);
 const tmuxSessionCache = new Map<string, { sessions: TmuxSession[]; expiresAt: number }>();
+const tmuxStaleCacheMs = integerSetting("TMUX_STALE_CACHE_MS", 300_000, 0, 3_600_000);
 // Opportunistically keeps the cache above warm in the background -- but only
 // by reusing a ControlMaster that already exists (see hasLiveMaster below).
 // Never establishes a new connection itself: that needs a signing round trip
@@ -80,6 +82,7 @@ const tmuxSessionCache = new Map<string, { sessions: TmuxSession[]; expiresAt: n
 // target is just skipped for that tick; the next real request falls back to
 // the normal cold-start path, same as if this polling didn't exist at all.
 const tmuxPollIntervalMs = integerSetting("TMUX_POLL_INTERVAL_MS", 5_000, 1_000, 60_000);
+const tmuxPollsInFlight = new Set<string>();
 const distDirectory = resolve(process.cwd(), "dist");
 let activeConnections = 0;
 let targets: Target[] = [];
@@ -347,7 +350,7 @@ function fetchTmuxSessions(target: Target, strictHostKeyArgs: string[], controlA
   return new Promise((resolve, reject) => {
     execFile("ssh", args, {
       env: agentSocket ? { ...process.env, SSH_AUTH_SOCK: agentSocket } : process.env,
-      timeout: 15_000,
+      timeout: 35_000,
       maxBuffer: 64 * 1024,
     }, (error, stdout, stderr) => {
       if (error) {
@@ -363,12 +366,20 @@ function fetchTmuxSessions(target: Target, strictHostKeyArgs: string[], controlA
   });
 }
 
-async function listTmuxSessions(agentSocket: string, target: Target, strictHostKeyArgs: string[], controlPath: string): Promise<TmuxSession[]> {
+async function listTmuxSessions(agentSocket: string, target: Target, strictHostKeyArgs: string[], controlPath: string): Promise<TmuxListing> {
   const cached = tmuxSessionCache.get(target.id);
-  if (cached && cached.expiresAt > Date.now()) return cached.sessions;
-  const sessions = await fetchTmuxSessions(target, strictHostKeyArgs, controlMasterArgs(controlPath), agentSocket);
-  tmuxSessionCache.set(target.id, { sessions, expiresAt: Date.now() + tmuxSessionCacheMs });
-  return sessions;
+  if (cached && cached.expiresAt > Date.now()) return { sessions: cached.sessions };
+  try {
+    const sessions = await fetchTmuxSessions(target, strictHostKeyArgs, controlMasterArgs(controlPath), agentSocket);
+    tmuxSessionCache.set(target.id, { sessions, expiresAt: Date.now() + tmuxSessionCacheMs });
+    return { sessions };
+  } catch (error) {
+    if (cached && cached.expiresAt + tmuxStaleCacheMs > Date.now()) {
+      console.warn(`listTmuxSessions using cached result for target ${target.id}:`, error);
+      return { sessions: cached.sessions, stale: true };
+    }
+    throw error;
+  }
 }
 
 function strictHostKeyArgsFor(target: Target): string[] {
@@ -381,6 +392,16 @@ function strictHostKeyArgsFor(target: Target): string[] {
 // deliberate: unlike controlMasterArgs' "auto", this must never authenticate
 // a fresh connection, only ride one that already exists.
 async function refreshFromLiveMasterIfAny(target: Target): Promise<void> {
+  if (tmuxPollsInFlight.has(target.id)) return;
+  tmuxPollsInFlight.add(target.id);
+  try {
+    await refreshFromLiveMaster(target);
+  } finally {
+    tmuxPollsInFlight.delete(target.id);
+  }
+}
+
+async function refreshFromLiveMaster(target: Target): Promise<void> {
   let entries: string[];
   try {
     entries = await readdir(controlSocketDir);
@@ -467,7 +488,7 @@ websocketServer.on("connection", (websocket) => {
       clearAuthenticationTimer();
       authenticationTimer = setTimeout(
         () => closeForAuthenticationTimeout("Device signature was not completed in time"),
-        signatureTimeoutMs,
+        signatureTimeoutMs + (message.mode === "tmux_sessions" ? 10_000 : 0),
       );
       const keyBlob = Buffer.from(message.keyBlob, "base64");
       const fingerprint = normalizedFingerprint(keyBlob);
@@ -492,7 +513,7 @@ websocketServer.on("connection", (websocket) => {
       try {
         temporaryDirectory = await mkdtemp(join(tmpdir(), "webssh-"));
         agentSocket = join(temporaryDirectory, "agent.sock");
-        agent = new BrowserAgent(websocket, keyBlob, clearAuthenticationTimer);
+        agent = new BrowserAgent(websocket, keyBlob, clearAuthenticationTimer, signatureTimeoutMs);
         await agent.listen(agentSocket);
         strictHostKeyArgs = ["-o", "StrictHostKeyChecking=yes", "-o", `UserKnownHostsFile=${target.knownHostsFile}`];
         if (message.mode === "tmux_sessions") {
@@ -501,8 +522,8 @@ websocketServer.on("connection", (websocket) => {
             return;
           }
           try {
-            const sessions = await listTmuxSessions(agentSocket, target, strictHostKeyArgs, controlPath);
-            send(websocket, { type: "tmux_sessions", sessions });
+            const listing = await listTmuxSessions(agentSocket, target, strictHostKeyArgs, controlPath);
+            send(websocket, { type: "tmux_sessions", ...listing });
           } catch (error) {
             console.error(`listTmuxSessions failed for target ${target.id}:`, error);
             send(websocket, { type: "tmux_sessions", sessions: [], error: "Unable to list tmux sessions" });
@@ -551,12 +572,18 @@ websocketServer.on("connection", (websocket) => {
           cwd: process.cwd(),
           env: { ...process.env, SSH_AUTH_SOCK: agentSocket, TERM: "xterm-256color" },
         });
-        terminal.onData((data) => send(websocket, { type: "output", data: Buffer.from(data, "utf8").toString("base64") }));
+        let terminalReady = false;
+        terminal.onData((data) => {
+          if (!terminalReady) {
+            terminalReady = true;
+            send(websocket, { type: "status", status: "connected" });
+          }
+          send(websocket, { type: "output", data: Buffer.from(data, "utf8").toString("base64") });
+        });
         terminal.onExit(({ exitCode }) => {
           send(websocket, { type: "status", status: "closed", message: `SSH exited (${exitCode})` });
           websocket.close();
         });
-        send(websocket, { type: "status", status: "connected" });
       } catch (error) {
         send(websocket, { type: "error", message: error instanceof Error ? error.message : "Failed to start SSH" });
         await cleanup();
@@ -568,8 +595,8 @@ websocketServer.on("connection", (websocket) => {
       agent?.receiveSignature(message.id, message.signature, message.error);
     } else if (message.type === "tmux_sessions" && agentSocket && terminal && controlPath && target?.capabilities?.tmux) {
       try {
-        const sessions = await listTmuxSessions(agentSocket, target, strictHostKeyArgs, controlPath);
-        send(websocket, { type: "tmux_sessions", sessions });
+        const listing = await listTmuxSessions(agentSocket, target, strictHostKeyArgs, controlPath);
+        send(websocket, { type: "tmux_sessions", ...listing });
       } catch (error) {
         console.error(`listTmuxSessions failed for target ${target.id}:`, error);
         send(websocket, { type: "tmux_sessions", sessions: [], error: "Unable to list tmux sessions" });

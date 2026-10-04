@@ -45,6 +45,7 @@ export class BrowserAgent {
     private readonly websocket: WebSocket,
     private readonly keyBlob: Buffer,
     private readonly onSignatureProvided?: () => void,
+    private readonly signatureTimeoutMs = 30_000,
   ) {}
 
   async listen(socketPath: string): Promise<void> {
@@ -121,7 +122,7 @@ export class BrowserAgent {
           const request = this.pending.get(id);
           if (request) request.socket.write(frame(Buffer.from([SSH_AGENT_FAILURE])));
           this.pending.delete(id);
-        }, 20_000);
+        }, this.signatureTimeoutMs);
         this.pending.set(id, { socket, timer });
         this.websocket.send(JSON.stringify({ type: "sign_request", id, data: data.toString("base64") }));
         return;
