@@ -1646,7 +1646,8 @@ type AgentMenuKind = "codex" | "hermes" | "opencode";
 type AgentLaunchCommand = { id: string; menu: AgentMenuKind; agent: AgentKind; label: string; command: string; description: string; followup?: string; extraLaunch?: boolean };
 const agentLaunchCommands: AgentLaunchCommand[] = [
   { id: "codex", menu: "codex", agent: "codex", label: "codex", command: "codex\r", description: "Start Codex" },
-  { id: "codex-resume", menu: "codex", agent: "codex", label: "codex resume", command: "codex resume --all\r", description: "Resume Codex" },
+  { id: "codex-resume", menu: "codex", agent: "codex", label: "codex resume", command: "codex resume\r", description: "Resume the most recent Codex session" },
+  { id: "codex-resume-all", menu: "codex", agent: "codex", label: "codex resume --all", command: "codex resume --all\r", description: "Choose from all Codex sessions" },
   { id: "claude", menu: "codex", agent: "claude", label: "claude", command: "claude\r", description: "Start Claude" },
   { id: "claude-resume", menu: "codex", agent: "claude", label: "claude --resume", command: "claude --resume\r", description: "Resume Claude" },
   { id: "hermes", menu: "hermes", agent: "hermes", label: "hermes", command: "hermes chat\r", description: "Start Hermes" },
