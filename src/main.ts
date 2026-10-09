@@ -1645,8 +1645,8 @@ document.addEventListener("pointerdown", (event) => {
 type AgentMenuKind = "codex" | "hermes" | "opencode";
 type AgentLaunchCommand = { id: string; menu: AgentMenuKind; agent: AgentKind; label: string; command: string; description: string; followup?: string; extraLaunch?: boolean };
 const agentLaunchCommands: AgentLaunchCommand[] = [
-  { id: "codex", menu: "codex", agent: "codex", label: "codex", command: "codex --no-alt-screen\r", description: "Start Codex" },
-  { id: "codex-resume", menu: "codex", agent: "codex", label: "codex resume", command: "codex resume --all --no-alt-screen\r", description: "Resume Codex" },
+  { id: "codex", menu: "codex", agent: "codex", label: "codex", command: "codex\r", description: "Start Codex" },
+  { id: "codex-resume", menu: "codex", agent: "codex", label: "codex resume", command: "codex resume --all\r", description: "Resume Codex" },
   { id: "claude", menu: "codex", agent: "claude", label: "claude", command: "claude\r", description: "Start Claude" },
   { id: "claude-resume", menu: "codex", agent: "claude", label: "claude --resume", command: "claude --resume\r", description: "Resume Claude" },
   { id: "hermes", menu: "hermes", agent: "hermes", label: "hermes", command: "hermes chat\r", description: "Start Hermes" },
